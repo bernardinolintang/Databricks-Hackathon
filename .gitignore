@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Pipeline outputs: rebuilt by `python run_pipeline.py`.
+# The serving bundle IS committed so the hosted app (Vercel) has data to serve.
+data/*
+!data/serving/
+data/serving/forecast_meta.json
+data/serving/fair_value_meta.json
+mlruns/
+mlartifacts/
+mlflow.db
+
+# Tooling
+.vercel
+.databricks/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

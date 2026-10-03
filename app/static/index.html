@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en-SG">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>FlatFair · HDB resale intelligence</title>
+  <meta name="description" content="Explore HDB resale prices, see a six-month outlook, check affordability and estimate a flat's fair value using Singapore's official open data.">
+  <meta name="theme-color" content="#f5f5f7">
+  <link rel="icon" type="image/svg+xml" href="/static/img/mark.svg">
+  <link rel="preload" href="/static/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css?v=1">
+  <script src="/static/vendor/echarts.min.js" defer></script>
+  <script type="module" src="/static/js/main.js?v=1"></script>
+</head>
+<body>
+  <a class="skip-link" href="#view">Skip to content</a>
+
+  <header class="nav" role="banner">
+    <div class="nav__inner">
+      <a class="brand" href="#/overview" aria-label="FlatFair home">
+        <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><use href="/static/img/mark.svg#mark"></use></svg>
+        <span class="brand__word">Flat<span>Fair</span></span>
+      </a>
+      <nav class="tabs" aria-label="Sections">
+        <a class="tabs__item" href="#/overview" data-route="overview">Overview</a>
+        <a class="tabs__item" href="#/market" data-route="market">Market</a>
+        <a class="tabs__item" href="#/forecast" data-route="forecast">Forecast</a>
+        <a class="tabs__item" href="#/afford" data-route="afford">Affordability</a>
+        <a class="tabs__item" href="#/value" data-route="value">Fair value</a>
+        <a class="tabs__item" href="#/compare" data-route="compare">Compare</a>
+      </nav>
+      <button class="health" type="button" id="health-button" aria-haspopup="dialog" aria-controls="health-panel">
+        <span class="health__dot" aria-hidden="true"></span>
+        <span class="health__text">Loading data…</span>
+      </button>
+    </div>
+  </header>
+
+  <main id="view" class="view" tabindex="-1" aria-live="polite"></main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <a class="brand brand--small" href="#/overview" aria-label="FlatFair home">
+          <svg class="brand__mark" viewBox="0 0 32 32" aria-hidden="true"><use href="/static/img/mark.svg#mark"></use></svg>
+          <span class="brand__word">Flat<span>Fair</span></span>
+        </a>
+        <p>Know the market. Know what you can afford.</p>
+      </div>
+      <div class="footer__cols">
+        <div>
+          <h4>Data</h4>
+          <p>Resale transactions: <a href="https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view" target="_blank" rel="noopener">HDB, via data.gov.sg</a></p>
+          <p>Household income: <a href="https://tablebuilder.singstat.gov.sg/table/TS/M810361" target="_blank" rel="noopener">SingStat table M810361</a></p>
+          <p>Contains information licensed under the <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noopener">Singapore Open Data Licence</a>.</p>
+        </div>
+        <div>
+          <h4>Responsible use</h4>
+          <p>Historical patterns do not guarantee future market movements.</p>
+          <p>Fair value estimates are statistical estimates and do not account for every unit-specific characteristic.</p>
+          <p>Affordability figures are informational and not financial advice.</p>
+        </div>
+        <div>
+          <h4>About</h4>
+          <p>An independent project for the Databricks AI Social Impact Challenge Singapore 2026. Not affiliated with or endorsed by HDB.</p>
+          <p>Built on Databricks: Delta Lake, MLflow, Unity Catalog.</p>
+          <p>Charts by <a href="https://echarts.apache.org" target="_blank" rel="noopener">Apache ECharts</a> · Typeface <a href="https://rsms.me/inter/" target="_blank" rel="noopener">Inter</a> · <a href="https://github.com/bernardinolintang/Databricks-Hackathon" target="_blank" rel="noopener">Source on GitHub</a></p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <div class="sheet" id="health-panel" role="dialog" aria-modal="true" aria-labelledby="health-title" hidden>
+    <div class="sheet__backdrop" data-close></div>
+    <div class="sheet__panel">
+      <button class="sheet__close" type="button" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div id="health-body"></div>
+    </div>
+  </div>
+
+  <noscript><p class="noscript">FlatFair needs JavaScript to draw its charts.</p></noscript>
+</body>
+</html>

@@ -1,0 +1,750 @@
+{
+  "flatfair_version": "0.1.0",
+  "generated_at": "2026-10-03T02:24:54+00:00",
+  "last_complete_month": "2026-09",
+  "quality": {
+    "total_rows": 241822,
+    "valid_rows": 241822,
+    "invalid_rows": 0,
+    "valid_pct": 100.0,
+    "invalid_by_reason": {},
+    "duplicate_rows": 318,
+    "price_outlier_rows": 1078,
+    "lease_mismatch_rows": 1,
+    "lease_derived_rows": 0,
+    "excluded_from_model_rows": 178,
+    "excluded_from_model_by_reason": {
+      "sparse_flat_type": 178
+    },
+    "missing_values": {
+      "month": 0,
+      "town": 0,
+      "flat_type": 0,
+      "block": 0,
+      "street_name": 0,
+      "storey_range": 0,
+      "floor_area_sqm": 0,
+      "flat_model": 0,
+      "lease_commence_date": 0,
+      "remaining_lease": 0,
+      "resale_price": 0
+    },
+    "missing_values_total": 0,
+    "missing_columns": [],
+    "unexpected_columns": [],
+    "earliest_month": "2017-01",
+    "latest_month": "2026-10",
+    "towns": 26,
+    "flat_types": 7,
+    "checks": [
+      {
+        "name": "schema",
+        "description": "All expected source columns are present",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "price_positive",
+        "description": "resale_price > 0",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "floor_area_valid",
+        "description": "floor_area_sqm > 0 and within plausible bounds",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "month_parseable",
+        "description": "month parses as YYYY-MM",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "no_future_dates",
+        "description": "no transaction dated after the pull date",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "town_present",
+        "description": "town is not missing",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "flat_type_present",
+        "description": "flat_type is not missing",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "lease_possible",
+        "description": "remaining lease within 0-99 years, commencement year plausible",
+        "failed_rows": 0,
+        "passed": true
+      },
+      {
+        "name": "storey_parseable",
+        "description": "storey_range parses as 'NN TO NN'",
+        "failed_rows": 0,
+        "passed": true
+      }
+    ],
+    "checks_passed": 9,
+    "checks_total": 9,
+    "ingested_at": "2026-10-02T16:09:21+00:00",
+    "ingestion_method": "bulk",
+    "source_last_updated": "2026-10-02T02:10:20+08:00",
+    "api_total_rows": 241822,
+    "snapshot_sha256": "790b31c4b7685f0964ea8262fb76837e5872a27bd8709cb8f42cabed531f3fee",
+    "ingestion_notes": [],
+    "last_complete_month": "2026-09"
+  },
+  "forecast": {
+    "selected_method": "rolling_3m",
+    "baseline_method": "rolling_3m",
+    "series_count": 104,
+    "feature_columns": [
+      "dev_1",
+      "ret_1",
+      "ret_2",
+      "ret_3",
+      "ret_6",
+      "ret_12",
+      "ma3_vs_ma6",
+      "ma3_vs_ma12",
+      "trend_slope",
+      "log_vol_3m",
+      "vol_yoy",
+      "nat_ret_3",
+      "nat_ret_12",
+      "horizon",
+      "target_moy",
+      "town_code",
+      "flat_type_code"
+    ],
+    "training_period": [
+      "2018-01",
+      "2026-09"
+    ],
+    "validation_origins": [
+      "2024-12",
+      "2025-03",
+      "2025-06",
+      "2025-09",
+      "2025-12",
+      "2026-03"
+    ],
+    "validation_period": [
+      "2025-01",
+      "2026-09"
+    ],
+    "horizon_months": 6,
+    "interval_level": 0.8,
+    "backtest_rows": 3702,
+    "train_rows": 60882,
+    "metrics": [
+      {
+        "method": "naive_last",
+        "mae": 35131.61763911398,
+        "rmse": 58353.58240795385,
+        "mape": 5.118199118691581,
+        "n": 3702,
+        "mape_vs_baseline_pct": 13.27,
+        "selected": false
+      },
+      {
+        "method": "rolling_3m",
+        "mae": 31198.15949374793,
+        "rmse": 53151.16248913354,
+        "mape": 4.518384731256422,
+        "n": 3702,
+        "mape_vs_baseline_pct": 0.0,
+        "selected": true
+      },
+      {
+        "method": "linear_trend",
+        "mae": 37955.03857017056,
+        "rmse": 58311.8965288766,
+        "mape": 5.688107728997471,
+        "n": 3702,
+        "mape_vs_baseline_pct": 25.89,
+        "selected": false
+      },
+      {
+        "method": "gbm",
+        "mae": 31626.851514298374,
+        "rmse": 50245.71753637683,
+        "mape": 4.658245646908994,
+        "n": 3702,
+        "mape_vs_baseline_pct": 3.1,
+        "selected": false
+      }
+    ],
+    "metrics_by_horizon": [
+      {
+        "method": "naive_last",
+        "horizon": 1,
+        "mae": 31737.664215686254,
+        "rmse": 55872.53406771045,
+        "mape": 4.598260777393272,
+        "n": 612
+      },
+      {
+        "method": "naive_last",
+        "horizon": 2,
+        "mae": 38225.419190938504,
+        "rmse": 66198.32901592203,
+        "mape": 5.5472859157451575,
+        "n": 618
+      },
+      {
+        "method": "naive_last",
+        "horizon": 3,
+        "mae": 34284.8637096774,
+        "rmse": 56366.65875008728,
+        "mape": 4.974096099639828,
+        "n": 620
+      },
+      {
+        "method": "naive_last",
+        "horizon": 4,
+        "mae": 33360.426016260135,
+        "rmse": 51816.21784141938,
+        "mape": 4.929172648893517,
+        "n": 615
+      },
+      {
+        "method": "naive_last",
+        "horizon": 5,
+        "mae": 35824.897961165065,
+        "rmse": 57301.597782683886,
+        "mape": 5.31208770767197,
+        "n": 618
+      },
+      {
+        "method": "naive_last",
+        "horizon": 6,
+        "mae": 37314.0945072698,
+        "rmse": 61442.51065538349,
+        "mape": 5.342429533947585,
+        "n": 619
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 1,
+        "mae": 28032.99806968045,
+        "rmse": 50916.51699594894,
+        "mape": 4.019198598757582,
+        "n": 612
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 2,
+        "mae": 33024.58888840457,
+        "rmse": 57576.852210272504,
+        "mape": 4.8362412241026425,
+        "n": 618
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 3,
+        "mae": 29701.1863854813,
+        "rmse": 50662.64524538073,
+        "mape": 4.2951807500446195,
+        "n": 620
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 4,
+        "mae": 30962.67227903805,
+        "rmse": 53499.619940858945,
+        "mape": 4.447427060344398,
+        "n": 615
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 5,
+        "mae": 32767.60551797436,
+        "rmse": 52270.13765369401,
+        "mape": 4.840579323547818,
+        "n": 618
+      },
+      {
+        "method": "rolling_3m",
+        "horizon": 6,
+        "mae": 32670.49511060003,
+        "rmse": 53668.2388589382,
+        "mape": 4.6669724185527945,
+        "n": 619
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 1,
+        "mae": 30874.57859484797,
+        "rmse": 49217.12746803934,
+        "mape": 4.539047051999896,
+        "n": 612
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 2,
+        "mae": 36612.81501583856,
+        "rmse": 58587.6734894359,
+        "mape": 5.5343582698487035,
+        "n": 618
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 3,
+        "mae": 34452.57616262269,
+        "rmse": 52623.0582468396,
+        "mape": 5.132780899368634,
+        "n": 620
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 4,
+        "mae": 39860.79897405027,
+        "rmse": 59656.59216618792,
+        "mape": 5.908392300051109,
+        "n": 615
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 5,
+        "mae": 42498.61077560126,
+        "rmse": 63563.243774784976,
+        "mape": 6.535953521784424,
+        "n": 618
+      },
+      {
+        "method": "linear_trend",
+        "horizon": 6,
+        "mae": 43373.92723384115,
+        "rmse": 64579.5071452987,
+        "mape": 6.468562047747082,
+        "n": 619
+      },
+      {
+        "method": "gbm",
+        "horizon": 1,
+        "mae": 27295.318759005644,
+        "rmse": 47731.46200154419,
+        "mape": 3.8969474954579018,
+        "n": 612
+      },
+      {
+        "method": "gbm",
+        "horizon": 2,
+        "mae": 31080.40173394333,
+        "rmse": 52300.475521875334,
+        "mape": 4.619697586767861,
+        "n": 618
+      },
+      {
+        "method": "gbm",
+        "horizon": 3,
+        "mae": 29425.060464736813,
+        "rmse": 47379.627893819044,
+        "mape": 4.298224215567617,
+        "n": 620
+      },
+      {
+        "method": "gbm",
+        "horizon": 4,
+        "mae": 31726.051511961792,
+        "rmse": 51586.551399750795,
+        "mape": 4.62102769790377,
+        "n": 615
+      },
+      {
+        "method": "gbm",
+        "horizon": 5,
+        "mae": 33584.35656664937,
+        "rmse": 49668.38410271492,
+        "mape": 5.1454606980294955,
+        "n": 618
+      },
+      {
+        "method": "gbm",
+        "horizon": 6,
+        "mae": 36607.41426116564,
+        "rmse": 52535.76487803907,
+        "mape": 5.3605729398535615,
+        "n": 619
+      }
+    ],
+    "intervals": [
+      {
+        "horizon": 1,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.06723827505089434,
+        "upper_log": 0.07743615320218784,
+        "n_errors": 62,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 1,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.06370621324471415,
+        "upper_log": 0.07542275011023672,
+        "n_errors": 231,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 1,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.036333665792993484,
+        "upper_log": 0.04749717369049699,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 2,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.05713730399908985,
+        "upper_log": 0.11780003199859747,
+        "n_errors": 66,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 2,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.07712112917559816,
+        "upper_log": 0.09370473540968623,
+        "n_errors": 233,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 2,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.055978885634127916,
+        "upper_log": 0.054560091141886105,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 3,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.07553006604035979,
+        "upper_log": 0.07096400945814449,
+        "n_errors": 67,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 3,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.0734132341366714,
+        "upper_log": 0.07444657381514894,
+        "n_errors": 234,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 3,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.03784913027172043,
+        "upper_log": 0.06633159301417652,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 4,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.04319406706519124,
+        "upper_log": 0.12330265228321591,
+        "n_errors": 65,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 4,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.08252352601842533,
+        "upper_log": 0.07101989155446553,
+        "n_errors": 231,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 4,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.04214051987529287,
+        "upper_log": 0.060692396013022815,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 5,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.05818600565687153,
+        "upper_log": 0.07569498511960585,
+        "n_errors": 66,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 5,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.09337863279779947,
+        "upper_log": 0.08748282799365233,
+        "n_errors": 233,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 5,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.0607623146844012,
+        "upper_log": 0.0587772097948261,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 6,
+        "volume_tier": "under 10 sales a month",
+        "lower_log": -0.06165344507959337,
+        "upper_log": 0.0884781660220266,
+        "n_errors": 66,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 6,
+        "volume_tier": "10-30 sales a month",
+        "lower_log": -0.09030452321767074,
+        "upper_log": 0.09649258035477373,
+        "n_errors": 234,
+        "pooled_across_tiers": false
+      },
+      {
+        "horizon": 6,
+        "volume_tier": "30+ sales a month",
+        "lower_log": -0.037592372102065896,
+        "upper_log": 0.06819403480502122,
+        "n_errors": 319,
+        "pooled_across_tiers": false
+      }
+    ],
+    "mlflow_run_id": "05c53e3a47ba4ee598fedb17b8de1ec9"
+  },
+  "fair_value": {
+    "selected_model": "gradient_boosting",
+    "baseline_model": "comparable_median",
+    "features": [
+      "town",
+      "flat_type",
+      "flat_model",
+      "floor_area_sqm",
+      "storey_mid",
+      "remaining_lease_years",
+      "months_since_start"
+    ],
+    "target": "log(resale_price / market_index_psm)",
+    "training_period": [
+      "2017-01",
+      "2026-03"
+    ],
+    "holdout_period": [
+      "2026-04",
+      "2026-09"
+    ],
+    "train_rows": 227942,
+    "holdout_rows": 13589,
+    "final_train_rows": 241531,
+    "excluded_flat_types": [
+      "1 ROOM",
+      "MULTI-GENERATION"
+    ],
+    "price_outliers_kept": 1077,
+    "interval_level": 0.8,
+    "metrics": [
+      {
+        "model": "comparable_median",
+        "mae": 89480.98910729267,
+        "rmse": 133279.08010710828,
+        "mape": 12.877439803106034,
+        "median_ape": 9.541130275229364,
+        "within_5pct": 28.832143645595703,
+        "within_10pct": 51.791890499668845,
+        "n": 13589,
+        "mae_vs_baseline_pct": 0.0,
+        "selected": false
+      },
+      {
+        "model": "ridge",
+        "mae": 50327.005459488406,
+        "rmse": 68621.43332231813,
+        "mape": 7.5845867453738505,
+        "median_ape": 6.219800746826348,
+        "within_5pct": 41.44528662889101,
+        "within_10pct": 71.79336227831334,
+        "n": 13589,
+        "mae_vs_baseline_pct": -43.76,
+        "selected": false
+      },
+      {
+        "model": "gradient_boosting",
+        "mae": 33892.068913211566,
+        "rmse": 49383.94473912173,
+        "mape": 4.992510901956401,
+        "median_ape": 3.8948014210038178,
+        "within_5pct": 60.350283317389064,
+        "within_10pct": 88.11538744572816,
+        "n": 13589,
+        "mae_vs_baseline_pct": -62.12,
+        "selected": true
+      }
+    ],
+    "importance": [
+      {
+        "feature": "floor_area_sqm",
+        "label": "Floor area",
+        "importance": 0.13690201459855567,
+        "share_pct": 30.6
+      },
+      {
+        "feature": "town",
+        "label": "Town",
+        "importance": 0.1235334348927295,
+        "share_pct": 27.6
+      },
+      {
+        "feature": "remaining_lease_years",
+        "label": "Remaining lease",
+        "importance": 0.08780817900772638,
+        "share_pct": 19.6
+      },
+      {
+        "feature": "flat_type",
+        "label": "Flat type",
+        "importance": 0.05020208286667607,
+        "share_pct": 11.2
+      },
+      {
+        "feature": "flat_model",
+        "label": "Flat model",
+        "importance": 0.02964790354714872,
+        "share_pct": 6.6
+      },
+      {
+        "feature": "storey_mid",
+        "label": "Storey",
+        "importance": 0.019166767795744406,
+        "share_pct": 4.3
+      },
+      {
+        "feature": "months_since_start",
+        "label": "Transaction date",
+        "importance": 0.0,
+        "share_pct": 0.0
+      }
+    ],
+    "intervals": [
+      {
+        "flat_type": "ALL",
+        "lower_log": -0.0821605954324343,
+        "upper_log": 0.07305280496606097,
+        "n_errors": 13589
+      },
+      {
+        "flat_type": "2 ROOM",
+        "lower_log": -0.06813556138019972,
+        "upper_log": 0.061964089708292605,
+        "n_errors": 400
+      },
+      {
+        "flat_type": "3 ROOM",
+        "lower_log": -0.0924657856782835,
+        "upper_log": 0.0655677686426464,
+        "n_errors": 3071
+      },
+      {
+        "flat_type": "4 ROOM",
+        "lower_log": -0.07868252436404911,
+        "upper_log": 0.06952509602652743,
+        "n_errors": 5973
+      },
+      {
+        "flat_type": "5 ROOM",
+        "lower_log": -0.08457573409191169,
+        "upper_log": 0.08610994947679323,
+        "n_errors": 3239
+      },
+      {
+        "flat_type": "EXECUTIVE",
+        "lower_log": -0.07579580437707349,
+        "upper_log": 0.087365891826124,
+        "n_errors": 906
+      }
+    ],
+    "market_index_psm_now": 6435.21,
+    "months_since_start_now": 117,
+    "valuation_month": "2026-10",
+    "mlflow_run_id": "eff40b1f2902458b8d394751ab6a7ae0"
+  },
+  "affordability_assumptions": {
+    "loan_to_value": 0.75,
+    "annual_interest_rate": 0.026,
+    "tenure_years": 25,
+    "msr_limit": 0.3,
+    "comfortable_ratio": 0.25,
+    "bsd_tiers": [
+      [
+        180000,
+        0.01
+      ],
+      [
+        180000,
+        0.02
+      ],
+      [
+        640000,
+        0.03
+      ],
+      [
+        500000,
+        0.04
+      ],
+      [
+        1500000,
+        0.05
+      ],
+      [
+        null,
+        0.06
+      ]
+    ]
+  },
+  "comparables": {
+    "lookback_months": 24,
+    "top_k": 5,
+    "scale_floor_area_sqm": 10.0,
+    "scale_storey": 6.0,
+    "scale_lease_years": 8.0,
+    "scale_recency_months": 12.0
+  },
+  "policy_events": [
+    {
+      "month": "2024-10",
+      "label": "Standard / Plus / Prime framework",
+      "detail": "First BTO exercise under HDB's new flat classification (October 2024). Resale records carry no classification field, so this marker is context only: any change around it is an association, not a measured effect."
+    }
+  ],
+  "sources": {
+    "hdb_resale": {
+      "dataset_id": "d_8b84c4ee58e3cfc0ece0d773c8ca6abc",
+      "name": "Resale flat prices based on registration date from Jan-2017 onwards",
+      "publisher": "Housing & Development Board (via data.gov.sg)"
+    },
+    "income": {
+      "table_id": "M810361",
+      "publisher": "Singapore Department of Statistics (SingStat Table Builder)"
+    }
+  },
+  "tables": {
+    "transactions": 241822,
+    "market_monthly": 19305,
+    "town_summary": 164,
+    "forecast": 624,
+    "income": 26
+  },
+  "has_income_benchmark": true
+}

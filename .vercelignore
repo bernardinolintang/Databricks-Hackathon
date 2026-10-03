@@ -1,0 +1,10 @@
+.venv
+.git
+.pytest_cache
+**/__pycache__
+data/bronze
+data/silver
+data/gold
+data/mlflow
+mlruns
+mlartifacts

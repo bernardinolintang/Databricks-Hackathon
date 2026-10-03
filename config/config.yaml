@@ -1,0 +1,143 @@
+# FlatFair central configuration.
+# Every tunable value lives here so notebooks, the pipeline CLI and the app agree.
+
+project: flatfair
+
+sources:
+  hdb_resale:
+    dataset_id: d_8b84c4ee58e3cfc0ece0d773c8ca6abc
+    name: "Resale flat prices based on registration date from Jan-2017 onwards"
+    publisher: "Housing & Development Board (via data.gov.sg)"
+    datastore_url: "https://data.gov.sg/api/action/datastore_search"
+    metadata_url: "https://api-production.data.gov.sg/v2/public/api/datasets/{dataset_id}/metadata"
+    download_url: "https://api-open.data.gov.sg/v1/public/api/datasets/{dataset_id}/poll-download"
+    expected_columns:
+      - month
+      - town
+      - flat_type
+      - block
+      - street_name
+      - storey_range
+      - floor_area_sqm
+      - flat_model
+      - lease_commence_date
+      - remaining_lease
+      - resale_price
+  income:
+    # SingStat Table Builder, "Key Indicators On Household Employment Income
+    # Among Resident Employed Households, Annual".
+    table_id: M810361
+    series_no: "5"   # Median monthly household employment income incl. employer CPF
+    url: "https://tablebuilder.singstat.gov.sg/api/table/tabledata/{table_id}"
+    publisher: "Singapore Department of Statistics (SingStat Table Builder)"
+
+ingestion:
+  # "bulk" pulls the full snapshot CSV in one request and verifies the row count
+  # against the datastore API; "api" pages through datastore_search.
+  method: bulk
+  page_size: 10000
+  max_retries: 5
+  backoff_seconds: 2.0
+  timeout_seconds: 90
+  # Pause between pages: data.gov.sg throttles anonymous clients.
+  page_pause_seconds: 1.0
+
+storage:
+  local_dir: data
+  # Databricks (Unity Catalog) targets. Free Edition ships a `workspace` catalog.
+  catalog: workspace
+  schema: flatfair
+  serving_volume: serving
+
+quality:
+  min_floor_area_sqm: 20
+  max_floor_area_sqm: 400
+  lease_term_years: 99
+  min_lease_commence_year: 1960
+  # Reported vs derived remaining lease may differ by rounding; beyond this we flag.
+  lease_mismatch_tolerance_years: 2.0
+  # Robust z-score (median/MAD) on price per sqm within town x flat type x year.
+  outlier_robust_z: 5.0
+  outlier_min_group_size: 30
+
+market:
+  rolling_windows: [3, 6]
+  # Window used for "current price" style KPIs. Monthly medians at town level
+  # are noisy, so headline figures use a trailing window instead of one month.
+  kpi_window_months: 3
+  summary_window_months: 12
+  min_transactions_for_stat: 5
+
+forecast:
+  horizon_months: 6
+  # Series are town x flat type plus town-level ("ALL") rollups.
+  min_history_months: 36
+  min_recent_transactions: 60      # in the last 12 complete months
+  backtest_folds: 6
+  backtest_step_months: 3
+  interval_level: 0.80
+  lags: [1, 2, 3, 6, 12]
+  gbm:
+    max_iter: 300
+    learning_rate: 0.05
+    max_depth: 4
+    min_samples_leaf: 40
+    l2_regularization: 1.0
+  random_state: 42
+
+fair_value:
+  holdout_months: 6
+  # 1 ROOM and MULTI-GENERATION have fewer than 100 sales each since 2017:
+  # too few to model or to validate honestly.
+  excluded_flat_types: ["1 ROOM", "MULTI-GENERATION"]
+  index_window_months: 3
+  interval_level: 0.80
+  gbm:
+    max_iter: 500
+    learning_rate: 0.08
+    max_leaf_nodes: 63
+    min_samples_leaf: 30
+    l2_regularization: 0.5
+  ridge_alpha: 1.0
+  permutation_sample: 8000
+  random_state: 42
+  comparables:
+    lookback_months: 24
+    top_k: 5
+    # Distance weights; each difference is scaled to "one meaningful step".
+    scale_floor_area_sqm: 10.0
+    scale_storey: 6.0
+    scale_lease_years: 8.0
+    scale_recency_months: 12.0
+
+affordability:
+  # Illustrative defaults modelled on an HDB housing loan. Verify against
+  # hdb.gov.sg before relying on them; all are editable in the app.
+  loan_to_value: 0.75
+  annual_interest_rate: 0.026
+  tenure_years: 25
+  # Mortgage Servicing Ratio cap that applies to HDB flat purchases.
+  msr_limit: 0.30
+  # Illustrative product threshold, not a regulatory one.
+  comfortable_ratio: 0.25
+  # Buyer's Stamp Duty marginal tiers for residential property: [band width, rate].
+  bsd_tiers:
+    - [180000, 0.01]
+    - [180000, 0.02]
+    - [640000, 0.03]
+    - [500000, 0.04]
+    - [1500000, 0.05]
+    - [null, 0.06]
+
+policy_events:
+  - month: "2024-10"
+    label: "Standard / Plus / Prime framework"
+    detail: >-
+      First BTO exercise under HDB's new flat classification (October 2024).
+      Resale records carry no classification field, so this marker is context
+      only: any change around it is an association, not a measured effect.
+
+mlflow:
+  experiment_local: flatfair
+  experiment_databricks: /Shared/flatfair
+  registered_model_fair_value: flatfair_fair_value

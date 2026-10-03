@@ -1,0 +1,7 @@
+# Databricks Apps configuration.
+# The app reads the serving bundle that notebook 06 publishes to a Unity
+# Catalog volume. Grant the app's service principal READ VOLUME on it.
+command: ["python", "app/serve.py"]
+env:
+  - name: FLATFAIR_SERVING_VOLUME
+    value: "/Volumes/workspace/flatfair/serving"
