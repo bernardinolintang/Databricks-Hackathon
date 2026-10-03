@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from app.services import location as location_service
 from app.services.bundle import Bundle
 from app.services.common import ALL, InputError, month_label, pct_change, title_case, validate_choice
 
@@ -63,6 +64,8 @@ def meta_payload(bundle: Bundle) -> dict[str, Any]:
         "income_benchmark": bundle.income_benchmark,
         "forecast_series": forecast_series,
         "has_town_map": bool(bundle.town_map),
+        "has_location": bundle.has_location,
+        "location": meta.get("location"),
         "forecast_method": meta["forecast"]["selected_method"],
         "forecast_mape": next(m["mape"] for m in meta["forecast"]["metrics"] if m["method"] == meta["forecast"]["selected_method"]),
         "forecast_origins": len(meta["forecast"]["validation_origins"]),
@@ -95,6 +98,8 @@ def town_stats(bundle: Bundle, flat_type: str = REFERENCE_FLAT_TYPE) -> dict[str
         if not record["enough_sales"]:
             record["median_price_12m"] = None
             record["median_psm_12m"] = None
+        place = location_service.town_location(bundle, record["town"], flat_type)
+        record["train_minutes"] = place["train_minutes"] if place else None
     return {
         "flat_type": flat_type,
         "towns": records,

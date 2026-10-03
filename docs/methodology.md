@@ -61,25 +61,32 @@ Warnings that keep the row valid:
 
 **Why an index.** Tree models cannot extrapolate a time trend. Dividing price by a market index (national median $/sqm over the three months *before* the sale month) leaves the model to learn how attributes move price relative to the market. Estimating today means multiplying by the latest index. Because the index for month *m* uses only months before *m*, holdout sales never inform their own prediction.
 
+**Inputs.** The flat's own details (town, flat type, flat model, floor area, storey midpoint, remaining lease, month) and eight measures of its block's location from section 8: metres to the nearest MRT exit, a mall, a hawker centre, a park and a park connector; kilometres to the city centre; primary schools within 1 km; bus stops within 400 m.
+
 **Split.** Train Jan 2017 to Mar 2026 (227,942 sales). Holdout Apr to Sep 2026 (13,588 sales).
 
 | Model | MAE | MAPE | Median error | Within 5% | Within 10% |
 |---|---|---|---|---|---|
-| Rule of thumb: recent town × type median $/sqm × floor area | $89,481 | 12.88% | 9.54% | 28.8% | 51.8% |
-| Ridge: one-hot town / type / model + quadratic numerics | $50,327 | 7.58% | 6.22% | 41.5% | 71.8% |
-| **Gradient boosting** (HistGradientBoosting, native categoricals) | **$33,892** | **4.99%** | **3.89%** | **60.4%** | **88.1%** |
+| Rule of thumb: recent town × type median $/sqm × floor area | $89,484 | 12.88% | 9.54% | 28.8% | 51.8% |
+| Ridge: one-hot town / type / model + quadratic numerics, with location | $40,085 | 5.96% | 4.84% | 51.5% | 82.4% |
+| Gradient boosting on the flat's own details only | $33,890 | 4.99% | 3.89% | 60.4% | 88.1% |
+| **Gradient boosting with location** (HistGradientBoosting, native categoricals) | **$26,284** | **3.91%** | **2.99%** | **71.8%** | **93.8%** |
 
 Selection is by MAE among fitted models; the rule of thumb is the yardstick. The selected model is refitted on all data before serving.
 
-**Usual range.** The 10th to 90th percentile of holdout log errors per flat type (about −8% to +7% for 4-room). It is labelled as "80% of recent sales in testing sold within this range of their estimate".
+**What location adds.** The flat-only row is the same model with the eight location inputs removed, trained and scored on the same split in every run. Location cuts the mean error by 22% ($33,890 to $26,284) and the typical miss from 3.89% to 2.99%. Part of that gain is the named amenities and part is that the measures tell blocks in different parts of a town apart, so the model picks up neighbourhood differences it could not see before. The app reports the gain as "location", not as the value of any one amenity.
+
+**Serving.** If the buyer names a block, the model gets that block's measures. If not, it gets the median of each measure over the last 24 months of sales of that town and flat type, and the result says it assumes a typical spot in the town. A block that could not be placed would be passed as missing, which the boosted trees handle natively.
+
+**Usual range.** The 10th to 90th percentile of holdout log errors per flat type (about −6% to +5% for 4-room). It is labelled as "80% of recent sales in testing sold within this range of their estimate".
 
 **Asking price.** "Below the usual range", "Within the usual range" or "Above the usual range", with the difference in dollars and percent. The wording avoids "good deal" or "overpriced".
 
 **Explanations.**
-* *Global:* permutation importance on 8,000 holdout sales (increase in mean absolute log error when a feature is shuffled). Floor area 31%, town 28%, remaining lease 20%, flat type 11%, flat model 7%, storey 4%; transaction date ≈0 because the index already absorbs time.
-* *Local:* "what moves this estimate". Each of floor area, storey, remaining lease and flat model is swapped back to the typical flat's value for that town and type (medians of the last 24 months) and the change in estimate is shown. Effects interact, so they do not sum exactly; the UI says so.
+* *Global:* permutation importance on 8,000 holdout sales (increase in mean absolute log error when a feature is shuffled). Floor area 27.5%, town 20.4%, remaining lease 19.8%, flat type 12.5%, flat model 5.6%, walk to the MRT 5.2%, storey 4.4%, distance to the city centre 2.5%, mall 0.9%, hawker centre 0.4%, park 0.3%, park connector 0.2%, bus stops 0.1%, primary schools 0.1%; transaction date ≈0 because the index already absorbs time. Town's share fell from 28% once location was added: some of what "town" used to stand for is now measured directly.
+* *Local:* "what moves this estimate". Each of floor area, storey, remaining lease and flat model is swapped back to the typical flat's value for that town and type (medians of the last 24 months) and the change in estimate is shown. When a block is named, a "Location" line swaps all eight location measures to the town's typical values at once. Effects interact, so they do not sum exactly; the UI says so.
 
-**Comparables.** Hard filter on the same town and flat type within the last 24 months. Rank by weighted Euclidean distance over floor area (10 sqm), storey midpoint (6 floors), remaining lease (8 years) and recency (12 months), plus a small penalty for a different flat model. Similarity = 100 × e^(−d/2).
+**Comparables.** Hard filter on the same town and flat type within the last 24 months. Rank by weighted Euclidean distance over floor area (10 sqm), storey midpoint (6 floors), remaining lease (8 years) and recency (12 months), plus a small penalty for a different flat model. When a block is named, distance from that block joins the ranking (600 m counts as one step), so nearby sales come first, and each result says how far away it is. Similarity = 100 × e^(−d/2).
 
 ## 5. Affordability
 
@@ -112,3 +119,26 @@ HDB does not publish town boundaries as shapes, so each town is drawn from the U
 The pipeline projects the coordinates (equirectangular, scaled by the cosine of the latitude), simplifies each outline with Douglas-Peucker at about 45 m, drops islets under a minimum size, and writes SVG paths. That takes 40,505 source points down to 2,257 and 34 KB, with no GIS dependency. The shapes show where a town is. They are not legal boundaries.
 
 Towns are shaded in five steps of one colour by median price, with breaks at the quintiles so each shade holds about the same number of towns. A town with fewer than 10 sales of the chosen flat type in 12 months is greyed out as "too few sales". The chosen town is filled solid.
+
+## 8. Block locations and what is nearby
+
+**Why.** Size, storey and lease describe the flat. What a buyer also pays for is where it is. Published hedonic studies of HDB resale prices put the walk to the MRT first among location factors (roughly 1% of price per 100 m, more in towns with few stations), followed by distance to the city centre, shopping malls and primary schools. FlatFair measures these for every block and lets the model decide how much each is worth.
+
+**Placing each block.** Resale records name a block and a street (`706`, `PASIR RIS DR 10`) and carry no coordinates. HDB's Existing Building dataset has an outline for every block but names the street with a code (`PAD10K`-style). The codes are built from the street name, so the pipeline matches them:
+
+1. For each street, find the codes whose blocks include that street's blocks, keeping only codes that start with the first two letters of the street's first real word (`JLN`, `LOR` and `KG` are skipped; `BT`, `UPP`, `C'WEALTH`, `TG` are spelled out).
+2. Take the code that covers the most blocks. A tie goes to the code whose third letter matches the street's type or next word (`BEDOK NTH ST 2` is `BES`, not `BER`), then to the code whose blocks sit nearest the rest of the town.
+3. A match more than 6 km from the rest of its town is rejected.
+4. The block's position is the middle of its outline. A block missing from the outlines would sit at the middle of its street, and a street with no match at the middle of its town, both marked as approximate.
+
+In this run all 580 streets matched one code each and all 9,755 blocks were placed on their own outline. As an independent check, 40 addresses (30 at random, 10 from the streets that needed the special rules) were looked up on OneMap: the median gap was 6 m and the largest 36 m.
+
+**Places.** MRT and LRT station exits and bus stops (LTA), hawker centres in operation (NEA), parks, leaving out playgrounds and small open spaces (NParks), park connector lines (NParks, simplified from 32,694 to 5,347 points), schools (MOE; the table has addresses only, so each is placed from its postal code with OneMap) and shopping malls (OpenStreetMap `shop=mall`; a mall mapped as both a building and a point is kept once). Seven exits carry a line code where the station name should be (`CC9`, `CC30` to `CC32`, `DT4`, `DT18`, `NE18`); these are mapped to their station names.
+
+**Measures per block.** Straight-line distance to the nearest MRT exit, the nearest exit of any station (MRT or LRT), bus stop, primary school, mall, hawker centre, park and park connector (nearest point on the line), and to Raffles Place as the city centre; the count of bus stops within 400 m and of primary schools within 1 km. The 1 km school radius is the distance MOE uses to give priority at Primary 1 registration.
+
+**Walking time.** `minutes = ceil(straight-line metres × 1.3 ÷ 80)`. Real routes are longer than a straight line; 1.3 is a common allowance for a street network, and 80 m a minute is 4.8 km/h. So the 5 and 10 minute rings on the map are 308 m and 615 m across the ground. These are estimates and the app says so beside every map: a canal or expressway between the block and the station is not accounted for.
+
+**Town comparisons.** "Typical walk to a station" is the median over sales of that flat type in the last 24 months, and "flats within a 10 min walk" is the share of those sales. Both use the nearest station of either kind, so LRT towns are not penalised.
+
+**Limits.** Today's stations, schools and malls are applied to every year of sales, so the measures describe each block as it is now. OpenStreetMap's mall list is community-maintained. A school's position is its postal code's, which can be the gate or the middle of the campus.

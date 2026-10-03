@@ -1,9 +1,10 @@
 import { api } from "../api.js";
 import { C, SERIES, chartCard, lineOption, mount, tooltipHtml, tableView } from "../charts.js";
-import { callout, errorBanner, fill, h, iconSvg, skeleton, statusPill } from "../dom.js";
-import { flatTypeLabel, int, money, moneyRange, monthLabel, pct, ratio, titleCase } from "../format.js";
+import { callout, errorBanner, fill, h, iconSvg, skeleton, statusPill, toast } from "../dom.js";
+import { flatTypeLabel, int, isNum, money, moneyRange, monthLabel, pct, ratio, titleCase } from "../format.js";
 import { chipGroup, openTownPicker } from "../picker.js";
 import { state, update } from "../state.js";
+import { createTownMap, loadMap, loadTownStats, mapCaption } from "../townmap.js";
 
 const MAX = 3;
 
@@ -29,13 +30,15 @@ export async function render(root, { meta }) {
   const controls = h("div", { class: "filters__row" });
   root.append(h("div", { class: "filters" }, h("div", { class: "wrap" }, controls)));
 
-  const verdictSlot = h("div", {}, skeleton(140));
+  const verdictSlot = h("div", { class: "fill" }, skeleton(260));
+  const mapSlot = h("div", { class: "fill" }, skeleton(260));
   const cards = h("div", { class: "grid grid--3" }, [0, 1, 2].map(() => skeleton(380)));
   let last = null;
   const chart = chartCard({
     title: "Prices over the last five years",
     sub: "Median price, averaged over three months.",
     height: 360,
+    zoom: true,
     tableView: () => {
       if (!last) return h("div");
       const months = last.series[0]?.points.map((p) => p.month) || [];
@@ -47,13 +50,19 @@ export async function render(root, { meta }) {
   const body = h(
     "div",
     { class: "fade-on-load" },
-    h("section", { class: "wrap section--tight" }, verdictSlot),
+    h("section", { class: "wrap section--tight" }, h("div", { class: "grid grid--2" }, verdictSlot, mapSlot)),
     h("section", { class: "wrap section" }, cards),
     h("section", { class: "wrap section--tight" }, chart.el),
   );
   root.append(
     body,
-    h("section", { class: "wrap section" }, callout("Changes compare the median of flats sold in each period, so they partly reflect which flats were sold. Repayments use the loan settings from the Affordability step.")),
+    h(
+      "section",
+      { class: "wrap section" },
+      callout(
+        `Changes compare the median of flats sold in each period, so they partly reflect which flats were sold. Repayments use the loan settings from the Affordability step.${meta.has_location ? " Walking times are estimates from straight-line distance to the nearest MRT or LRT station, across flats sold in the last two years." : ""}`,
+      ),
+    ),
     h(
       "section",
       { class: "wrap section" },
@@ -67,6 +76,53 @@ export async function render(root, { meta }) {
   );
 
   const colourOf = (town) => SERIES[slots.indexOf(town)] || C.s1;
+
+  // The same map as the picker, on the page: the chosen towns are filled in
+  // their colours and a tap adds or removes one.
+  let townMap = null;
+  const mapCaptionEl = h("p", { class: "small comparemap__note" });
+  loadMap().then((map) => {
+    if (!map.available) {
+      mapSlot.remove();
+      verdictSlot.parentNode.classList.remove("grid--2");
+      return;
+    }
+    townMap = createTownMap({ map, animate: false, onSelect: toggleTown, label: "Map of Singapore. Tap a town to add or remove it." });
+    fill(
+      mapSlot,
+      h(
+        "article",
+        { class: "card comparemap" },
+        h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, "On the map"), h("p", { class: "sub" }, "Tap a town to add or remove it."))),
+        townMap.el,
+        mapCaptionEl,
+      ),
+    );
+    drawMap();
+  });
+
+  async function drawMap() {
+    if (!townMap) return;
+    const forType = flatType;
+    const stats = await loadTownStats(forType);
+    if (forType !== flatType) return;
+    const chosen = slots.filter(Boolean);
+    townMap.update({ stats, selected: chosen, colors: Object.fromEntries(chosen.map((t) => [t, colourOf(t)])) });
+    mapCaptionEl.textContent = mapCaption(stats, forType);
+  }
+
+  function toggleTown(town) {
+    const at = slots.indexOf(town);
+    if (at !== -1) {
+      if (slots.filter(Boolean).length === 1) return toast("Keep at least one town.");
+      slots[at] = null;
+    } else {
+      const free = slots.indexOf(null);
+      if (free === -1) return toast(`Up to ${MAX} towns. Remove one first.`);
+      slots[free] = town;
+    }
+    save();
+  }
 
   async function pickTowns() {
     const chosen = await openTownPicker({
@@ -125,15 +181,15 @@ export async function render(root, { meta }) {
     );
     fill(
       controls,
-      h("div", { class: "field field--grow" }, h("span", {}, `Towns (${chosen.length} of ${MAX})`), chips),
+      h("div", { class: "field field--chips" }, h("span", {}, `Towns (${chosen.length} of ${MAX})`), chips),
       chipGroup({
         label: "Flat type",
         options: meta.common_flat_types.map((t) => [t, flatTypeLabel(t)]),
         value: flatType,
-        grow: true,
         onChange: (v) => {
           flatType = v;
           update({ flatType: v });
+          drawMap();
           load();
         },
       }),
@@ -143,6 +199,7 @@ export async function render(root, { meta }) {
   function save() {
     update({ compareSlots: slots, compareTowns: slots.filter(Boolean) });
     drawControls();
+    drawMap();
     load();
   }
 
@@ -184,6 +241,7 @@ export async function render(root, { meta }) {
         }
         const o = c.outlook;
         const af = c.affordability;
+        const place = c.location;
         return h(
           "article",
           { class: "card compare-card", style: { "--accent": color } },
@@ -205,6 +263,11 @@ export async function render(root, { meta }) {
             o ? h("dd", { style: { fontWeight: 500 } }, moneyRange(o.lower_price, o.upper_price, true)) : null,
             af ? h("dt", {}, "Monthly repayment") : null,
             af ? h("dd", {}, `${money(af.monthly_repayment)} (${ratio(af.repayment_ratio)})`) : null,
+            place ? h("dt", { class: "kv__group" }, "Getting around") : null,
+            place ? h("dt", {}, "Typical walk to a station") : null,
+            place ? h("dd", {}, `${place.train_minutes} min`) : null,
+            place && isNum(place.near_train_pct) ? h("dt", {}, `Flats within a ${place.near_train_minutes} min walk`) : null,
+            place && isNum(place.near_train_pct) ? h("dd", {}, `${int(place.near_train_pct)}%`) : null,
           ),
           af ? h("div", { class: "mt-16" }, statusPill(af.status, af.status_label)) : null,
         );

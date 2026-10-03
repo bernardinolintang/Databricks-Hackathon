@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>FlatFair · HDB resale intelligence</title>
   <meta name="description" content="See HDB resale prices in every town, check what you can afford and find out if an asking price is fair. Built on official HDB data.">
-  <meta name="theme-color" content="#f5f5f7">
+  <meta name="theme-color" content="#ffffff">
   <link rel="icon" type="image/svg+xml" href="/static/img/mark.svg">
-  <link rel="preload" href="/static/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/app.css?v=2">
+  <link rel="preload" href="/static/fonts/HankenGrotesk-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/css/app.css?v=3">
   <script src="/static/vendor/echarts.min.js" defer></script>
-  <script type="module" src="/static/js/main.js?v=2"></script>
+  <script type="module" src="/static/js/main.js?v=3"></script>
 </head>
 <body>
   <a class="skip-link" href="#view">Skip to content</a>
@@ -55,28 +55,45 @@
           <span class="brand__word">Flat<span>Fair</span></span>
         </a>
         <p>Know the market. Know what you can afford.</p>
+        <p>An independent student project. Not affiliated with or endorsed by HDB.</p>
       </div>
       <div class="footer__cols">
         <div>
-          <h4>Data</h4>
-          <p>Resale prices: <a href="https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view" target="_blank" rel="noopener">HDB, via data.gov.sg</a></p>
-          <p>Household income: <a href="https://tablebuilder.singstat.gov.sg/table/TS/M810361" target="_blank" rel="noopener">SingStat table M810361</a></p>
-          <p>Town map: <a href="https://data.gov.sg/datasets/d_4765db0e87b9c86336792efe8a1f7a66/view" target="_blank" rel="noopener">URA planning areas, via data.gov.sg</a></p>
-          <p>Contains information licensed under the <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noopener">Singapore Open Data Licence</a>.</p>
-        </div>
-        <div>
-          <h4>Responsible use</h4>
-          <p>Past prices don’t guarantee future ones.</p>
-          <p>Price estimates are based on past sales and can’t account for every detail of a flat.</p>
-          <p>Affordability numbers are a guide, not financial advice.</p>
+          <h4>Use FlatFair</h4>
+          <ul>
+            <li><a href="#/market">Market prices</a></li>
+            <li><a href="#/forecast">Six-month forecast</a></li>
+            <li><a href="#/afford">What you can afford</a></li>
+            <li><a href="#/value">Check a flat’s price</a></li>
+            <li><a href="#/compare">Compare towns</a></li>
+          </ul>
         </div>
         <div>
           <h4>About</h4>
-          <p>A student project for the Databricks AI Social Impact Challenge Singapore 2026. Not affiliated with or endorsed by HDB.</p>
-          <p>Built on Databricks: Delta Lake, MLflow, Unity Catalog.</p>
-          <p>Charts by <a href="https://echarts.apache.org" target="_blank" rel="noopener">Apache ECharts</a> · Typeface <a href="https://rsms.me/inter/" target="_blank" rel="noopener">Inter</a> · <a href="https://github.com/bernardinolintang/Databricks-Hackathon" target="_blank" rel="noopener">Source on GitHub</a></p>
+          <ul>
+            <li><a href="#/about">About FlatFair</a></li>
+            <li><a href="#/faq">Questions and answers</a></li>
+            <li><a href="#/sources">Where the data comes from</a></li>
+            <li><a href="https://github.com/bernardinolintang/Databricks-Hackathon" target="_blank" rel="noopener">Source code on GitHub</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Before you decide</h4>
+          <p>Past prices don’t guarantee future ones.</p>
+          <p>Estimates come from past sales and can’t see every detail of a flat.</p>
+          <p>Affordability numbers are a guide, not financial advice. Check <a href="https://www.hdb.gov.sg" target="_blank" rel="noopener">hdb.gov.sg</a> for the current rules.</p>
         </div>
       </div>
+    </div>
+    <div class="footer__bottom">
+      <nav aria-label="About this site">
+        <a href="#/about">About</a>
+        <a href="#/faq">Questions</a>
+        <a href="#/sources">Data sources</a>
+        <a href="#/terms">Terms of use</a>
+        <a href="#/privacy">Privacy</a>
+      </nav>
+      <p>Contains information from HDB, LTA, MOE, NEA, NParks, URA and SingStat, used under the <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noopener">Singapore Open Data Licence</a>.</p>
     </div>
   </footer>
 

@@ -50,7 +50,7 @@ export function townField({ id, label = "Town", value, allowAll = false, allLabe
 }
 
 /** One-tap choice chips, e.g. flat type. Behaves as a radio group. */
-export function chipGroup({ label, options, value, onChange, grow = false }) {
+export function chipGroup({ label, options, value, onChange }) {
   const group = h("div", { class: "chips", role: "radiogroup", "aria-label": label });
   for (const [val, text] of options) {
     const chip = h(
@@ -84,9 +84,9 @@ export function chipGroup({ label, options, value, onChange, grow = false }) {
     next.click();
     e.preventDefault();
   });
-  // Keep the chosen chip in view when the row scrolls sideways on a phone.
-  queueMicrotask(() => group.querySelector('[aria-checked="true"]')?.scrollIntoView({ block: "nearest", inline: "center" }));
-  return h("div", { class: `field${grow ? " field--grow" : ""}` }, h("span", {}, label), group);
+  // The chips wrap, so the chosen one is always on screen. (This used to call
+  // scrollIntoView on it, which also scrolled the page down on load.)
+  return h("div", { class: "field field--chips" }, h("span", {}, label), group);
 }
 
 /**
@@ -121,7 +121,7 @@ export async function openTownPicker({ title, selected = [], multi = false, max 
       : null;
 
     function refresh() {
-      const ringColors = Object.fromEntries(chosen.map((t) => [t, colorOf(t) || "#cc0000"]));
+      const ringColors = Object.fromEntries(chosen.map((t) => [t, colorOf(t) || "#c3141e"]));
       townMap?.update({ stats, selected: chosen, colors: ringColors, enabled: enabledSet });
       for (const button of listEl.querySelectorAll("[data-town]")) {
         const on = chosen.includes(button.dataset.town);

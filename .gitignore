@@ -17,6 +17,8 @@ mlflow.db
 # Tooling
 .vercel
 .databricks/
+# Code graph: rebuilt by `graphify . --code-only`, no API key needed.
+graphify-out/
 .DS_Store
 Thumbs.db
 .idea/

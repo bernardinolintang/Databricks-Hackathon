@@ -30,7 +30,7 @@ export async function render(root, { meta }) {
   const controls = h("div", { class: "filters__row" });
   root.append(h("div", { class: "filters" }, h("div", { class: "wrap" }, controls)));
 
-  const reading = h("div", {}, skeleton(80));
+  const reading = h("div", { class: "reading" }, skeleton(100));
   const chart = chartCard({
     title: "Median price and six-month forecast",
     sub: "Solid line is what flats sold for. Dashed line is the forecast. The shaded area is the likely range.",
@@ -40,6 +40,7 @@ export async function render(root, { meta }) {
       { label: "Likely range (80%)", color: C.s1Band, kind: "area" },
     ],
     height: 400,
+    zoom: true,
     tableView: () => tableView(tableColumns, tableRows()),
   });
   const forecastTable = h("div", {}, skeleton(300));
@@ -101,7 +102,6 @@ export async function render(root, { meta }) {
         label: "Flat type",
         options: typeOptions,
         value: flatType,
-        grow: true,
         onChange: (v) => {
           flatType = v;
           if (v !== "ALL") update({ flatType: v });

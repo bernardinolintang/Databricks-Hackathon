@@ -1,7 +1,9 @@
 """Responsive layout check in a real browser.
 
 Loads every page at a range of screen sizes and fails if anything overflows
-sideways, overlaps, or shows an error. Uses the Chrome already installed.
+sideways, overlaps, opens part of the way down, or shows an error. Then it
+uses the town map, the address picker, the street map and the chart zoom the
+way a visitor would. Uses the Chrome already installed.
 
     uvicorn app.main:app --port 8000        # in one terminal
     python tests/ui_check.py                # in another (pip install playwright)
@@ -16,7 +18,7 @@ from pathlib import Path
 
 from playwright.sync_api import Page, sync_playwright
 
-ROUTES = ["overview", "market", "forecast", "afford", "value", "compare"]
+ROUTES = ["overview", "market", "forecast", "afford", "value", "compare", "about", "faq", "sources", "terms", "privacy"]
 VIEWPORTS = [
     ("phone-small", 360, 740),
     ("phone", 390, 844),
@@ -29,8 +31,8 @@ VIEWPORTS = [
     ("desktop-2k", 2560, 1440),
 ]
 
-# Elements allowed to be wider than the screen because they scroll inside themselves.
-SCROLLERS = ".chips, .table-wrap, .tabs, .modal__body, .townlist"
+# Elements allowed to be wider than the screen because they scroll or clip inside themselves.
+SCROLLERS = ".table-wrap, .tabs, .modal__body, .townlist, .placemap"
 
 OVERFLOW_JS = """
 (scrollers) => {
@@ -87,6 +89,10 @@ def check_page(page: Page, name: str, width: int, route: str) -> list[str]:
     banner = page.locator(".error-banner")
     if banner.count():
         problems.append(f"error banner: {banner.first.inner_text()[:120]}")
+    # A page must open at its top, however its content arrives.
+    opened_at = page.evaluate("Math.round(window.scrollY)")
+    if opened_at:
+        problems.append(f"page opened {opened_at}px down instead of at the top")
 
     for position in ("top", "middle", "bottom"):
         height = page.evaluate("document.documentElement.scrollHeight")
@@ -168,6 +174,77 @@ def check_interactions(page: Page, base: str, width: int) -> list[str]:
         page.wait_for_function("document.querySelector('.insight')?.textContent.includes('5-room')", timeout=15000)
     except Exception:
         problems.append("flat type chip did not update the page")
+    problems += check_zoom(page, width)
+    problems += check_location(page, base)
+    return problems
+
+
+def check_zoom(page: Page, width: int) -> list[str]:
+    """The zoom buttons narrow a chart to months and the reset brings the years back."""
+    problems: list[str] = []
+    card = page.locator(".chart-card:has(.chart.is-zoomable)").first
+    axis = "[...document.querySelector('.chart.is-zoomable').querySelectorAll('svg text')].map((t) => t.textContent)"
+    if not any(label.isdigit() and len(label) == 4 for label in page.evaluate(axis)):
+        return ["price chart does not start on a year axis"]
+    for _ in range(4):
+        card.locator("[data-zoom='in']").click()
+        page.wait_for_timeout(150)
+    if not any("’" in label for label in page.evaluate(axis)):
+        problems.append("zooming in did not switch the axis to months")
+    reset = card.locator("[data-zoom='reset']")
+    if not reset.is_visible():
+        problems.append("no way back to all months after zooming in")
+    else:
+        reset.click()
+        page.wait_for_timeout(200)
+        if reset.is_visible() or not card.locator("[data-zoom='out']").is_disabled():
+            problems.append("chart did not return to all months")
+    return problems
+
+
+def check_location(page: Page, base: str) -> list[str]:
+    """Naming a block brings up what is nearby, the street map and distances; Compare shows its towns on a map."""
+    problems: list[str] = []
+    page.goto(f"{base}/#/value")
+    page.wait_for_selector("#v-town", timeout=20000)
+    page.wait_for_selector(".value-hero__num", timeout=20000)
+    if not page.locator("#v-street").count():
+        return problems  # a build without block locations has no address picker or street map
+    page.select_option("#v-street", index=1)
+    page.wait_for_function("!document.querySelector('#v-block').disabled", timeout=15000)
+    page.select_option("#v-block", index=1)
+    try:
+        page.wait_for_selector(".nearby > li", timeout=20000)
+        page.wait_for_selector(".placemap .pin--home", timeout=20000)
+    except Exception:
+        return ["choosing a block did not bring up what is nearby and the map"]
+    if page.locator(".nearby > li").count() < 4:
+        problems.append(f"only {page.locator('.nearby > li').count()} kinds of place listed near the block")
+    if not page.locator(".placemap .pin--sale").count():
+        problems.append("recent sales are not pinned on the map")
+    if "From your block" not in page.locator(".table").first.inner_text():
+        problems.append("recent sales do not say how far they are from the block")
+    canvas = page.locator(".placemap__canvas").bounding_box()
+    if canvas["width"] < 200 or canvas["height"] < 200:
+        problems.append(f"street map is too small to read: {canvas}")
+    # Choosing "Any street" again clears the block.
+    page.select_option("#v-street", index=0)
+    try:
+        page.wait_for_function("!document.querySelector('.placemap .pin--home')", timeout=15000)
+    except Exception:
+        problems.append("clearing the street left the block on the map")
+
+    page.goto(f"{base}/#/compare")
+    try:
+        page.wait_for_selector(".comparemap .townmap__town", state="attached", timeout=20000)
+        page.wait_for_selector(".compare-card", timeout=20000)
+    except Exception:
+        return problems + ["compare page has no town map"]
+    page.wait_for_timeout(300)
+    chosen = page.locator(".town-chip").count()
+    shown = page.locator(".comparemap .townmap__town.is-selected").count()
+    if chosen != shown:
+        problems.append(f"compare map highlights {shown} towns but {chosen} are chosen")
     return problems
 
 

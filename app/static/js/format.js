@@ -100,6 +100,34 @@ export function dateTime(iso) {
   return d.toLocaleString("en-SG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+/** "3 Oct 2026" */
+export function dateLabel(iso) {
+  if (!iso) return "n/a";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("en-SG", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** "PASIR RIS DR 10" -> "Pasir Ris Dr 10", "C'WEALTH DR" -> "C'wealth Dr" */
+export function streetLabel(street) {
+  return String(street || "")
+    .split(" ")
+    .map((word) => (/[A-Za-z]/.test(word) ? word[0].toUpperCase() + word.slice(1).toLowerCase() : word))
+    .join(" ");
+}
+
+/** 450 -> "450 m", 1513 -> "1.5 km" */
+export function metresLabel(m) {
+  if (!isNum(m)) return "n/a";
+  return m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toFixed(1)} km`;
+}
+
+/** 6 -> "6 min walk". Past half an hour nobody would call it a walk. */
+export function walkLabel(minutes) {
+  if (!isNum(minutes)) return "n/a";
+  return minutes > 30 ? "over 30 min walk" : `${minutes} min walk`;
+}
+
 export function escapeHtml(text) {
   return String(text ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 }

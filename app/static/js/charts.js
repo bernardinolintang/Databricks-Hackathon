@@ -1,8 +1,10 @@
 // Chart layer on ECharts, following one set of mark specs everywhere:
 // 2px lines, hairline solid grid, bars capped at 24px with rounded data ends,
 // one crosshair tooltip per chart, and a table view for every chart.
+// Charts over months can be zoomed: scroll or the +/- buttons to zoom, drag to
+// move, double-click to reset. The axis switches from years to months as you go in.
 
-import { h, clear, fill, segmented, table as htmlTable } from "./dom.js";
+import { h, fill, iconSvg, segmented, table as htmlTable } from "./dom.js";
 import { escapeHtml, moneyShort } from "./format.js";
 
 export const C = {
@@ -11,19 +13,37 @@ export const C = {
   s3: "#cc0000",
   s1Wash: "rgba(0,146,156,0.12)",
   s1Band: "rgba(0,146,156,0.16)",
-  grid: "#ececf0",
-  axis: "#d2d2d7",
-  ink: "#1d1d1f",
-  ink2: "#424245",
-  muted: "#6e6e73",
-  faint: "#86868b",
-  rest: "#d9d9de",
-  shade: "rgba(0,0,0,0.025)",
+  grid: "#e9ecef",
+  axis: "#ced4da",
+  ink: "#212529",
+  ink2: "#495057",
+  muted: "#6c757d",
+  faint: "#868e96",
+  rest: "#dee2e6",
+  shade: "rgba(0,0,0,0.03)",
 };
 export const SERIES = [C.s1, C.s2, C.s3];
-const FONT = getComputedStyle(document.documentElement).getPropertyValue("--font") || "Inter, sans-serif";
+const FONT = getComputedStyle(document.documentElement).getPropertyValue("--font") || "sans-serif";
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Never zoom in past this many months: fewer says nothing about a trend.
+const MIN_MONTHS = 6;
+const finePointer = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 const live = new Set();
+// How many months each zoomable chart is showing. The axis label rules read it.
+const views = new WeakMap();
+const zoomers = new WeakMap();
+
+// A wheel that was scrolling the page a moment ago keeps scrolling the page,
+// even when the pointer passes over a chart on the way.
+let lastPageWheel = 0;
+window.addEventListener(
+  "wheel",
+  (e) => {
+    if (!(e.target instanceof Element) || !e.target.closest(".chart.is-zoomable")) lastPageWheel = performance.now();
+  },
+  { passive: true, capture: true },
+);
 
 export function disposeCharts() {
   for (const { chart, observer } of live) {
@@ -46,13 +66,126 @@ export function mount(el, option) {
     observer.observe(el);
     live.add({ chart, observer });
   }
+  const view = views.get(option);
+  if (view) zoomable(chart, el, view);
   return chart;
 }
 
-/** A card holding one chart, with a Chart / Table switch. */
-export function chartCard({ title, sub, legend, height = 320, tableView, foot, className = "" }) {
+/** Wire zooming for a chart over months. Called on every mount; listeners attach once. */
+function zoomable(chart, el, view) {
+  let z = zoomers.get(el);
+  if (!z) {
+    z = { chart, view, start: 0, end: 100 };
+    zoomers.set(el, z);
+    el.classList.add("is-zoomable");
+    const card = el.closest(".chart-card");
+    z.zoomIn = card?.querySelector("[data-zoom='in']");
+    z.zoomOut = card?.querySelector("[data-zoom='out']");
+    z.reset = card?.querySelector("[data-zoom='reset']");
+    z.zoomIn?.addEventListener("click", () => zoomBy(z, 0.6));
+    z.zoomOut?.addEventListener("click", () => zoomBy(z, 1 / 0.6));
+    z.reset?.addEventListener("click", () => setWindow(z, 0, 100));
+    el.addEventListener(
+      "wheel",
+      (e) => {
+        // Left alone, the chart library cancels every wheel over the plot, so
+        // the page could not be scrolled past a chart. It never sees the event:
+        // zooming is decided here, and anything else is left to the page.
+        e.stopPropagation();
+        if (e.ctrlKey || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+        const out = e.deltaY > 0;
+        const now = performance.now();
+        // Nothing left to zoom out of, or the page was mid-scroll: let the page have it.
+        if ((out && z.end - z.start >= 100) || now - lastPageWheel < 400) {
+          lastPageWheel = now;
+          return;
+        }
+        e.preventDefault();
+        const box = el.getBoundingClientRect();
+        const at = z.chart.convertFromPixel({ gridIndex: 0 }, [e.clientX - box.left, e.clientY - box.top]);
+        const anchor = Array.isArray(at) && Number.isFinite(at[0]) ? (Math.max(0, Math.min(z.view.total - 1, at[0])) / Math.max(1, z.view.total - 1)) * 100 : undefined;
+        zoomBy(z, out ? 1.25 : 0.8, anchor);
+      },
+      // Capture, so this runs before the chart library's own listener.
+      { passive: false, capture: true },
+    );
+  }
+  // A fresh option (new town, new filter) starts fully zoomed out.
+  z.chart = chart;
+  z.view = view;
+  z.start = 0;
+  z.end = 100;
+  if (!z.bound || z.bound !== chart) {
+    z.bound = chart;
+    chart.on("dataZoom", () => {
+      // Dragging moves the window without changing its size.
+      const zoom = chart.getOption().dataZoom?.[0];
+      if (!zoom) return;
+      z.start = zoom.start;
+      z.end = zoom.end;
+      syncZoomControls(z);
+    });
+    chart.getZr().on("dblclick", () => setWindow(z, 0, 100));
+  }
+  syncZoomControls(z);
+}
+
+function minSpan(z) {
+  return Math.min(100, ((MIN_MONTHS - 1) / Math.max(1, z.view.total - 1)) * 100);
+}
+
+/** Zoom by `factor` (below 1 zooms in) around `anchor`, a percentage along the
+ *  whole series. Without one, the newest months stay put. */
+function zoomBy(z, factor, anchor) {
+  const span = z.end - z.start;
+  const next = Math.max(minSpan(z), Math.min(100, span * factor));
+  const pivot = anchor === undefined ? z.end : Math.max(z.start, Math.min(z.end, anchor));
+  const start = pivot - ((pivot - z.start) * next) / span;
+  setWindow(z, start, start + next);
+}
+
+function setWindow(z, start, end) {
+  const span = Math.max(minSpan(z), Math.min(100, end - start));
+  start = Math.max(0, Math.min(100 - span, start));
+  // Set before drawing: the axis label rules read it while the chart renders.
+  z.view.visible = Math.max(2, Math.round((span / 100) * (z.view.total - 1)) + 1);
+  z.chart.dispatchAction({ type: "dataZoom", start, end: start + span });
+}
+
+function syncZoomControls(z) {
+  const span = z.end - z.start;
+  if (z.zoomOut) z.zoomOut.disabled = span >= 99.9;
+  if (z.zoomIn) z.zoomIn.disabled = span <= minSpan(z) + 0.1;
+  if (z.reset) z.reset.hidden = span >= 99.9;
+}
+
+function zoomOption() {
+  // Drag to move needs a mouse. On a touch screen a drag must scroll the page,
+  // so there the buttons do the zooming and the newest months stay in view.
+  return [{ type: "inside", xAxisIndex: 0, disabled: !finePointer(), zoomOnMouseWheel: false, moveOnMouseWheel: false, moveOnMouseMove: true, zoomLock: false, throttle: 30 }];
+}
+
+/** A card holding one chart, with a Chart / Table switch. `zoom` adds zoom
+ *  controls; use it for charts over months. */
+export function chartCard({ title, sub, legend, height = 320, tableView, foot, className = "", zoom = false }) {
   const chartEl = h("div", { class: "chart", style: { height: `${height}px` }, role: "img", "aria-label": title });
   const tableEl = h("div", { hidden: true });
+  const zoomButtons = zoom
+    ? h(
+        "div",
+        { class: "zoom", role: "group", "aria-label": `Zoom ${title}` },
+        h("button", { type: "button", "data-zoom": "out", "aria-label": "Zoom out", title: "Zoom out", disabled: true }, iconSvg("minus")),
+        h("button", { type: "button", "data-zoom": "in", "aria-label": "Zoom in", title: "Zoom in" }, iconSvg("plus")),
+      )
+    : null;
+  const zoomFoot = zoom
+    ? h(
+        "div",
+        { class: "chart-foot" },
+        h("span", { class: "chart-foot__hint" }, "Scroll to zoom. Drag to move."),
+        h("button", { type: "button", "data-zoom": "reset", hidden: true }, "Show all months"),
+      )
+    : null;
   const toggle = tableView
     ? segmented(
         [
@@ -64,6 +197,8 @@ export function chartCard({ title, sub, legend, height = 320, tableView, foot, c
           const showTable = mode === "table";
           chartEl.hidden = showTable;
           tableEl.hidden = !showTable;
+          if (zoomButtons) zoomButtons.hidden = showTable;
+          if (zoomFoot) zoomFoot.hidden = showTable;
           if (showTable) fill(tableEl, tableView());
         },
         `${title} view`,
@@ -72,9 +207,10 @@ export function chartCard({ title, sub, legend, height = 320, tableView, foot, c
   const card = h(
     "article",
     { class: `card chart-card ${className}` },
-    h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, title), sub ? h("p", { class: "sub" }, sub) : null), toggle),
+    h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, title), sub ? h("p", { class: "sub" }, sub) : null), h("div", { class: "card__tools" }, zoomButtons, toggle)),
     legend ? legendRow(legend) : null,
     chartEl,
+    zoomFoot,
     tableEl,
     foot ? h("div", { class: "card__foot" }, foot) : null,
   );
@@ -118,7 +254,7 @@ function tooltipBase(formatter, trigger = "axis") {
     borderWidth: 1,
     padding: [10, 12],
     textStyle: { color: C.ink, fontFamily: FONT, fontSize: 13 },
-    extraCssText: "border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.10);",
+    extraCssText: "border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,.10);",
     axisPointer: trigger === "axis" ? { type: "line", lineStyle: { color: C.faint, width: 1, type: "solid" }, z: 0 } : undefined,
     formatter,
   };
@@ -136,8 +272,9 @@ export function tooltipHtml(title, rows) {
   return `<div class="ff-tooltip"><div class="ff-tooltip__title">${escapeHtml(title)}</div>${body}</div>`;
 }
 
-function monthAxis(months, { boundaryGap = false } = {}) {
-  const span = months.length;
+/** `view.visible` is how many months are on screen; the labels follow it:
+ *  years when zoomed out, quarters closer in, every month closest. */
+function monthAxis(months, view, { boundaryGap = false } = {}) {
   return {
     type: "category",
     data: months,
@@ -148,14 +285,22 @@ function monthAxis(months, { boundaryGap = false } = {}) {
       color: C.muted,
       fontSize: 12,
       hideOverlap: true,
-      interval: (i, v) => (span > 30 ? v.endsWith("-01") : ["01", "04", "07", "10"].includes(v.slice(5))),
+      interval: (i, v) => {
+        if (view.visible > 30) return v.endsWith("-01");
+        if (view.visible > 13) return ["01", "04", "07", "10"].includes(v.slice(5));
+        return true;
+      },
       formatter: (v) => {
-        if (span > 30) return v.slice(0, 4);
+        if (view.visible > 30) return v.slice(0, 4);
         const [y, m] = v.split("-");
-        return `${["Jan", "", "", "Apr", "", "", "Jul", "", "", "Oct"][Number(m) - 1]} ’${y.slice(2)}`;
+        return `${MONTH_NAMES[Number(m) - 1]} ’${y.slice(2)}`;
       },
     },
   };
+}
+
+function monthView(months) {
+  return { total: months.length, visible: months.length };
 }
 
 function valueAxis({ format = moneyShort, scale = true, min, max } = {}) {
@@ -253,18 +398,22 @@ export function lineOption({ months, series, band, markers, shadeFrom, tooltip, 
     });
   });
   const endLabelRoom = series.some((s) => s.endLabel) ? 96 : 16;
-  return {
+  const view = monthView(months);
+  const option = {
     animationDuration: 450,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: endLabelRoom, top: markers?.length || shadeFrom ? 36 : 20, bottom: 4, containLabel: true },
-    xAxis: monthAxis(months),
+    xAxis: monthAxis(months, view),
     yAxis: valueAxis({ format: yFormat, min: yMin }),
+    dataZoom: zoomOption(),
     tooltip: tooltipBase((params) => {
       const i = Array.isArray(params) ? params[0]?.dataIndex : params?.dataIndex;
       return i === undefined ? "" : tooltip(i);
     }),
     series: out,
   };
+  views.set(option, view);
+  return option;
 }
 
 function lastIndex(values) {
@@ -275,12 +424,14 @@ function lastIndex(values) {
 // ------------------------------------------------------------------ bars
 /** Vertical columns over months (volume). */
 export function columnsOption({ months, values, color = C.s1, tooltip, yFormat }) {
-  return {
+  const view = monthView(months);
+  const option = {
     animationDuration: 450,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: 16, top: 16, bottom: 4, containLabel: true },
-    xAxis: monthAxis(months, { boundaryGap: true }),
+    xAxis: monthAxis(months, view, { boundaryGap: true }),
     yAxis: valueAxis({ format: yFormat || ((v) => (v >= 1000 ? `${v / 1000}K` : v)), scale: false }),
+    dataZoom: zoomOption(),
     tooltip: tooltipBase((params) => tooltip(params[0].dataIndex)),
     series: [
       {
@@ -293,6 +444,8 @@ export function columnsOption({ months, values, color = C.s1, tooltip, yFormat }
       },
     ],
   };
+  views.set(option, view);
+  return option;
 }
 
 /** Histogram: categories are bins; bars nearly touch with a 2px gap. */

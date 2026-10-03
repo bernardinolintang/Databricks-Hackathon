@@ -20,16 +20,16 @@
 1. **Market**: prices, trends and sales for any town and flat type. You pick the town on a map of Singapore.
 2. **Forecast**: where prices may be in six months, with a likely range. We tested four methods and use the one that did best.
 3. **Affordability**: monthly repayment, cash needed upfront, the 30% repayment limit, and which towns fit the budget.
-4. **Fair value**: what a flat should sell for today, where the asking price sits, and the five closest recent sales.
-5. **Compare**: up to three towns side by side.
+4. **Fair value**: what a flat should sell for today, where the asking price sits, and the five closest recent sales. Pick the block and you also see what is within walking distance (MRT, buses, schools, shops, parks) on a street map, and the estimate uses that block's location.
+5. **Compare**: up to three towns side by side, including the typical walk to a station.
 
-**How we built it.** HDB, URA and SingStat open data feed bronze/silver/gold Delta tables in Unity Catalog. Nine quality checks flag problem rows instead of deleting them. MLflow tracks a four-method forecast backtest and a gradient-boosted fair value model, which is registered in Unity Catalog. A FastAPI + JavaScript app runs on Databricks Apps, with a public mirror on Vercel.
+**How we built it.** Open data from HDB, LTA, MOE, NEA, NParks, URA and SingStat feeds bronze/silver/gold Delta tables in Unity Catalog. Every one of 9,755 blocks is placed on the map from HDB's building outlines and measured against trains, schools, shops and parks. Nine quality checks flag problem rows instead of deleting them. MLflow tracks a four-method forecast backtest and a gradient-boosted fair value model, which is registered in Unity Catalog. A FastAPI + JavaScript app runs on Databricks Apps, with a public mirror on Vercel.
 
-**Accomplishments.** The fair value model was tested on 13,588 sales it never saw: median error 3.9%, against 9.5% for the $/sqm rule of thumb. When a simple 3-month average beat our ML forecast in backtesting, we published the average and show the scorecard.
+**Accomplishments.** The fair value model was tested on 13,588 sales it never saw: median error 3.0%, against 9.5% for the $/sqm rule of thumb. Adding each block's location took it from 3.9% to 3.0%, and we keep the model without location in the scorecard so that gain stays measured. When a simple 3-month average beat our ML forecast in backtesting, we published the average and show the scorecard.
 
 **What's next.** Run the pipeline as a Lakeflow Job in the final workspace, add a Genie space over the gold tables, bring in BTO supply context from the HDB Annual Report, and test the journey with first-time buyers.
 
-**Built with:** Databricks (Delta Lake, Unity Catalog, MLflow, Lakeflow Jobs, Databricks SQL, Databricks Apps), Python, pandas, scikit-learn, FastAPI, Apache ECharts, data.gov.sg (HDB and URA), SingStat Table Builder.
+**Built with:** Databricks (Delta Lake, Unity Catalog, MLflow, Lakeflow Jobs, Databricks SQL, Databricks Apps), Python, pandas, scikit-learn, FastAPI, Apache ECharts, Leaflet, data.gov.sg (HDB, LTA, MOE, NEA, NParks, URA), SingStat Table Builder, OneMap, OpenStreetMap.
 
 ## Team (fill in on Devpost)
 | Name | Institution | Course | Year | Email |

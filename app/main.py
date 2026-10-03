@@ -26,6 +26,7 @@ from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from app.services import market as market_service  # noqa: E402
+from app.services import location as location_service  # noqa: E402
 from app.services import outlook, personal  # noqa: E402
 from app.services.bundle import Bundle, BundleError, load_bundle  # noqa: E402
 from app.services.common import ALL, InputError, to_json  # noqa: E402
@@ -127,9 +128,19 @@ def affordability(
     return ok(personal.affordability(bundle(), income, cash, flat_type, town, price, max_repayment, rate, tenure, ltv))
 
 
+@app.get("/api/blocks")
+def blocks(town: str) -> JSONResponse:
+    return ok(location_service.blocks_in_town(bundle(), town))
+
+
+@app.get("/api/nearby")
+def nearby(block: str = Query(..., max_length=8), street_name: str = Query(..., max_length=60), town: str | None = None) -> JSONResponse:
+    return ok(location_service.block_nearby(bundle(), block, street_name, town))
+
+
 @app.get("/api/fair-value/typical")
-def typical(town: str, flat_type: str) -> JSONResponse:
-    return ok(personal.typical_flat(bundle(), town, flat_type))
+def typical(town: str, flat_type: str, block: str | None = Query(None, max_length=8), street_name: str | None = Query(None, max_length=60)) -> JSONResponse:
+    return ok(personal.typical_flat(bundle(), town, flat_type, block, street_name))
 
 
 @app.get("/api/fair-value")
@@ -141,8 +152,10 @@ def fair_value(
     remaining_lease: float = Query(..., gt=0, le=99),
     flat_model: str | None = None,
     asking_price: float | None = Query(None, ge=0, le=10_000_000),
+    block: str | None = Query(None, max_length=8),
+    street_name: str | None = Query(None, max_length=60),
 ) -> JSONResponse:
-    return ok(personal.fair_value(bundle(), town, flat_type, floor_area, storey_range, remaining_lease, flat_model, asking_price))
+    return ok(personal.fair_value(bundle(), town, flat_type, floor_area, storey_range, remaining_lease, flat_model, asking_price, block, street_name))
 
 
 @app.get("/api/compare")

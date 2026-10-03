@@ -11,6 +11,8 @@
           schema check, row-count check                            │
                              ▼                                     ▼
  BRONZE   bronze_hdb_resale (text, full snapshot)   bronze_income   bronze_ingestion_log (append)
+          bronze_planning_areas (URA)   bronze_hdb_buildings (HDB outlines)
+          bronze_places (LTA, MOE + OneMap, NEA, NParks, OpenStreetMap)   bronze_park_connectors (NParks)
                              │
                              │ parse lease / storey / month, type, standardise,
                              │ 9 validity checks, flag duplicates and unusual prices
@@ -20,11 +22,12 @@
                              │
                              ▼
  GOLD     gold_market_monthly   gold_town_summary   gold_flat_type_summary   gold_market_index
-          gold_affordability    gold_comparable_transactions
+          gold_affordability    gold_comparable_transactions   gold_town_map
+          gold_block_locations (each block's position and what is near it)   gold_places   gold_park_connectors
                              │
              ┌───────────────┴────────────────┐
              ▼                                ▼
- ML       forecast backtest (4 methods)    fair value (rule / ridge / gradient boosting)
+ ML       forecast backtest (4 methods)    fair value (rule / ridge / boosting, with and without location)
           → gold_forecast, _metrics,        → gold_fair_value_metrics, _importance
             _backtest, _features              → UC model workspace.flatfair.flatfair_fair_value
           MLflow experiment /Shared/flatfair (parent + child runs, params, metrics, artifacts)
@@ -37,7 +40,7 @@
      Databricks Apps (app.yaml)       Vercel (public demo, same code)
      FastAPI JSON API + static SPA
 
- SQL      v_town_4room_latest, v_monthly_from_silver, v_forecast_vs_now  → dashboards, Genie, lineage
+ SQL      v_town_4room_latest, v_monthly_from_silver, v_forecast_vs_now, v_price_by_train_walk  → dashboards, Genie, lineage
 ```
 
 ## Why this shape
@@ -51,6 +54,10 @@
 | Medians computed on request in the app | A median of medians is not a median. Arbitrary filters (town × type × storey × model × years) are recomputed from transactions. |
 | One FastAPI app for Databricks Apps and Vercel | The same artifact runs behind workspace login for judges and publicly for a shareable link. |
 | Town map drawn from open boundary data | URA planning areas from data.gov.sg are simplified in the pipeline into SVG paths (34 KB). No map tiles, API key or third-party service, and it works offline. |
+| Blocks placed from HDB's own outlines | One download of HDB Existing Building places all 9,755 blocks. Geocoding each address with OneMap would take about three hours at its anonymous rate limit and would tie the pipeline to a service that asks for a token. OneMap is used only for 337 schools, and those lookups are cached in bronze. |
+| Distances worked out in the pipeline | Each block's distance to every kind of place is computed once with a k-d tree and stored in `gold_block_locations`. The app only looks up a row; it rebuilds the small place index lazily for the "what's nearby" list. |
+| Street map only where a street matters | The Fair value page draws a block and its surroundings on OneMap's base map with Leaflet, loaded on first use. Every other page keeps the offline town map. If the map tiles fail, the distances and the list still work. |
+| Optional steps degrade, never block | The town map and the places step each warn and move on if their source is unreachable. Without places the price model trains on the flat's own details and the app hides the address picker and street map. |
 
 ## Storage abstraction
 
@@ -59,7 +66,7 @@
 ## Free Edition fit
 
 * Serverless notebooks only; no clusters to manage.
-* One schema, one volume, about 22 small tables.
+* One schema, one volume, about 28 small tables.
 * No model serving endpoint needed: the model runs inside the app process.
 * One of three allowed apps.
 * The heaviest step, the forecast backtest, trains six small boosted models in about 20 seconds on a laptop.

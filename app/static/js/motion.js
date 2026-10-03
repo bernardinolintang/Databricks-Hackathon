@@ -157,5 +157,8 @@ export function countUp(el, to, format, { duration = 900 } = {}) {
 /** Cross-fade between pages where the browser supports view transitions. */
 export function transition(update) {
   if (reducedMotion() || !document.startViewTransition) return update();
-  return document.startViewTransition(update).finished.catch(() => {});
+  const swap = document.startViewTransition(update);
+  // Changing page again mid-fade skips this one. That is fine, and not an error.
+  swap.ready.catch(() => {});
+  return swap.finished.catch(() => {});
 }

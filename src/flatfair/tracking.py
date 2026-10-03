@@ -15,7 +15,7 @@ import pandas as pd
 from mlflow.exceptions import MlflowException
 
 from flatfair.config import local_data_dir
-from flatfair.models.fair_value import FEATURES, FairValueResult
+from flatfair.models.fair_value import FairValueResult
 from flatfair.models.forecast import ForecastResult
 
 log = logging.getLogger(__name__)
@@ -134,7 +134,7 @@ def log_fair_value(result: FairValueResult, cfg: dict[str, Any], example: pd.Dat
         mlflow.log_params(
             {
                 "target": info["target"],
-                "feature_set": ",".join(FEATURES),
+                "feature_set": ",".join(info["features"]),
                 "training_period": " to ".join(info["training_period"]),
                 "validation_period": " to ".join(info["holdout_period"]),
                 "train_rows": info["train_rows"],
@@ -157,7 +157,7 @@ def log_fair_value(result: FairValueResult, cfg: dict[str, Any], example: pd.Dat
                         "within_10pct": row.within_10pct,
                     }
                 )
-                if row.model == "gradient_boosting":
+                if row.model.startswith("gradient_boosting"):
                     mlflow.log_params({f"gbm_{k}": v for k, v in cfg["fair_value"]["gbm"].items()})
                 if row.model == "ridge":
                     mlflow.log_param("ridge_alpha", cfg["fair_value"]["ridge_alpha"])

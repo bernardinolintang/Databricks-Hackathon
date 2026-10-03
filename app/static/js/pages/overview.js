@@ -1,7 +1,7 @@
 import { api } from "../api.js";
 import { C, chartCard, lineOption, mount, tooltipHtml, tableView } from "../charts.js";
 import { delta, fill, h, iconSvg, skeleton, statTile } from "../dom.js";
-import { dateTime, flatTypeLabel, int, isNum, money, moneyShort, monthLabel, pct, titleCase } from "../format.js";
+import { dateLabel, flatTypeLabel, int, isNum, money, moneyShort, monthLabel, pct, titleCase } from "../format.js";
 import { countUp, cycleWords, reveal, splitWords, whenVisible } from "../motion.js";
 import { chipGroup } from "../picker.js";
 import { state, update } from "../state.js";
@@ -14,10 +14,12 @@ export async function render(root, { meta }) {
   const line1 = h("span", {}, "Know the market.");
   const line2 = h("span", { class: "soft" }, "Know what you can afford.");
   const title = h("h1", { class: "display" }, line1, h("br"), line2);
-  root.append(
+  const hero = h("div", { class: "wrap hero__inner" });
+  root.append(h("section", { class: "hero" }, hero));
+  hero.append(
     h(
-      "section",
-      { class: "wrap hero" },
+      "div",
+      {},
       h("p", { class: "eyebrow" }, "HDB resale prices, explained"),
       title,
       reveal(
@@ -55,16 +57,20 @@ export async function render(root, { meta }) {
 
   // ---------------------------------------------------------------- KPIs
   const kpiRow = h("div", { class: "grid grid--4" }, [0, 1, 2, 3].map(() => skeleton(124)));
-  root.append(h("section", { class: "wrap section" }, kpiRow));
+  root.append(h("section", { class: "wrap section hero-kpis" }, kpiRow));
 
   // ---------------------------------------------------------------- map
   const mapSlot = h("div", {}, skeleton(420));
   root.append(
     h(
-      "section",
-      { class: "wrap section" },
-      h("div", { class: "section-head" }, h("div", {}, h("p", { class: "eyebrow" }, "Prices by town"), h("h2", { class: "h2" }, "Tap a town to see its prices"))),
-      mapSlot,
+      "div",
+      { class: "band band--teal" },
+      h(
+        "section",
+        { class: "wrap section" },
+        h("div", { class: "section-head" }, h("div", {}, h("p", { class: "eyebrow" }, "Prices by town"), h("h2", { class: "h2" }, "Tap a town to see its prices"))),
+        mapSlot,
+      ),
     ),
   );
 
@@ -79,6 +85,7 @@ export async function render(root, { meta }) {
       { label: "Oct 2024: new flat classification starts", color: C.faint },
     ],
     height: 360,
+    zoom: true,
     tableView: () =>
       tableView(
         [
@@ -107,7 +114,7 @@ export async function render(root, { meta }) {
     tile("Median resale price", countUp(h("span", {}), k.median_price, (v) => money(Math.round(v / 1000) * 1000)), [`All flats, ${k.window_label}`]),
     tile("Change from a year ago", countUp(h("span", {}), k.yoy_pct, (v) => pct(v)), [`It was ${money(k.median_price_year_ago)}`]),
     tile(`Flats sold, ${k.ytd_label}`, countUp(h("span", {}), k.transactions_ytd, (v) => int(Math.round(v))), [delta(k.transactions_ytd_change_pct), "vs the same months last year"]),
-    tile("Data up to", h("span", {}, monthLabel(meta.last_complete_month)), [`Updated ${dateTime(meta.quality.source_last_updated).split(",")[0]}`]),
+    tile("Last updated", h("span", {}, dateLabel(meta.quality.source_last_updated)), [`Full months up to ${monthLabel(meta.last_complete_month)}`]),
   );
 
   drawMapSection(mapSlot, meta, map);
@@ -185,6 +192,7 @@ async function drawMapSection(slot, meta, map) {
             h("li", {}, h("span", {}, "From a year ago"), h("b", {}, pct(row.yoy_pct))),
             h("li", {}, h("span", {}, "Over five years"), h("b", {}, pct(row.change_5y_pct))),
             h("li", {}, h("span", {}, "Flats sold"), h("b", {}, int(row.transactions_12m))),
+            isNum(row.train_minutes) ? h("li", {}, h("span", {}, "Typical walk to a station"), h("b", {}, `${row.train_minutes} min`)) : null,
           )
         : null,
       h(
@@ -295,10 +303,14 @@ function journey() {
   );
   whenVisible(list);
   return h(
-    "section",
-    { class: "wrap section" },
-    h("div", { class: "section-head" }, h("div", {}, h("p", { class: "eyebrow" }, "How to use it"), h("h2", { class: "h2" }, "Five steps to a decision"))),
-    list,
+    "div",
+    { class: "band" },
+    h(
+      "section",
+      { class: "wrap section" },
+      h("div", { class: "section-head" }, h("div", {}, h("p", { class: "eyebrow" }, "How to use it"), h("h2", { class: "h2" }, "Five steps to a decision"))),
+      list,
+    ),
   );
 }
 
@@ -309,7 +321,9 @@ function howItWorks(meta) {
   const steps = [
     ["Official data", int(q.total_rows), "resale records from HDB, pulled from data.gov.sg."],
     ["Checked", `${q.checks_total} checks`, "run on every record. Odd ones are flagged and kept."],
-    ["Summarised", `${meta.towns.length} towns`, "with prices, sales and trends for each flat type."],
+    meta.has_location
+      ? ["Placed on the map", `${int(meta.location.blocks)} blocks`, "each with its walk to trains, schools, shops and parks."]
+      : ["Summarised", `${meta.towns.length} towns`, "with prices, sales and trends for each flat type."],
     ["Modelled", `${acc.median_ape.toFixed(1)}% off`, `is the price model’s typical miss on ${int(acc.n)} sales it had never seen.`],
     ["Your answer", "5 steps", "from the market to one flat’s price."],
   ];
@@ -338,7 +352,7 @@ function howItWorks(meta) {
 function trustRow(meta) {
   const acc = meta.fair_value_accuracy;
   const items = [
-    ["Official data only", "Every number comes from HDB resale records on data.gov.sg or SingStat income data."],
+    ["Open data only", "Prices are HDB resale records from data.gov.sg. Income is from SingStat. Nearby places are from LTA, MOE, NEA and NParks, and malls from OpenStreetMap."],
     ["Tested first", `The forecast was checked from ${meta.forecast_origins} past starting points (${meta.forecast_mape.toFixed(1)}% average error). The price model was tested on ${int(acc.n)} recent sales.`],
     ["Know the limits", "Every estimate comes with a range. The model can’t see renovation or views. This is not financial advice."],
   ];

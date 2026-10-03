@@ -32,6 +32,15 @@ SingStat M810361 series 5: `year, median_monthly_household_income, series_name, 
 ### bronze_planning_areas
 URA planning area boundaries: `planning_area, region, central_area, geometry_type, geometry_json` (GeoJSON coordinates kept verbatim), `_ingested_at`.
 
+### bronze_hdb_buildings
+HDB Existing Building outlines, one row per block: `block, street_code` (HDB's code for the street, e.g. `TAS11A`), `postal_code, latitude, longitude` (the middle of the outline), `_ingested_at`.
+
+### bronze_places
+One row per place, as published: `category` (`train`, `bus`, `school`, `mall`, `hawker`, `park`), `kind` (`MRT` / `LRT`; `Primary` / `Secondary` / `Junior college`), `name`, `detail` (exit code, bus stop number, school postal code, hawker status), `latitude, longitude, source, _ingested_at`.
+
+### bronze_park_connectors
+NParks Park Connector Loop: `name, loop, geometry_json` (`[[lon, lat], ...]` as published), `source`.
+
 ## Silver
 
 ### silver_hdb_resale
@@ -83,6 +92,28 @@ Valid transactions with `month, year, town, flat_type, flat_model, block, street
 ### gold_town_map
 One row per drawn shape: `kind` (`town` or `context`), `name`, `region`, `svg_path`, `label_x`, `label_y`, `area`, `merged`, `planning_areas`, `view_width`, `view_height`.
 
+### gold_block_locations
+Grain: one row per block with a resale record (town × block × street_name).
+
+| Column | Meaning |
+|---|---|
+| sales, lease_commence_year | resale records for the block; the year its lease began |
+| latitude, longitude | the block's position |
+| street_code | the HDB street code the street was matched to |
+| location_source | `building` (its own outline), `street` (middle of its street) or `town` (middle of its town) |
+| mrt_m, mrt_name | metres to the nearest MRT exit, and the station |
+| train_m, train_name, train_kind | the same for the nearest station of either kind, MRT or LRT |
+| bus_m, bus_stops_400m | metres to the nearest bus stop; stops within 400 m |
+| primary_m, primary_name, primary_schools_1km | nearest primary school; primary schools within 1 km |
+| mall_m, mall_name, hawker_m, hawker_name, park_m, park_name | nearest mall, hawker centre and park |
+| connector_m, connector_name | nearest point on a park connector |
+| city_km | kilometres to Raffles Place |
+
+Distances are straight lines in metres. The price model uses `mrt_m, city_km, mall_m, hawker_m, park_m, connector_m, primary_schools_1km, bus_stops_400m`.
+
+### gold_places / gold_park_connectors
+Places cleaned for the app: `category, kind, name, detail, latitude, longitude` (malls mapped twice kept once). Connector lines simplified to about 4 m: `name, loop, points, path_json` (`[[lat, lon], ...]`).
+
 ### gold_forecast
 `town, flat_type, origin_month, month, horizon (1 to 6), forecast_price, lower_price, upper_price (80%), recent_level_price, volume_tier, method`
 
@@ -96,4 +127,4 @@ Holdout `mae, rmse, mape, median_ape, within_5pct, within_10pct, n, mae_vs_basel
 `checked_at, total_rows, valid_rows, invalid_rows, duplicate_rows, missing_values_total, price_outlier_rows, latest_month, checks_passed, checks_total, summary_json`.
 
 ## Serving bundle (`/Volumes/workspace/flatfair/serving`, `data/serving`)
-`transactions.parquet, market_monthly.parquet, town_summary.parquet, forecast.parquet, income.parquet, town_map.json, fair_value_model.joblib, meta.json` (quality summary, model metrics, intervals, importance, assumptions, sources).
+`transactions.parquet, market_monthly.parquet, town_summary.parquet, forecast.parquet, income.parquet, town_map.json, blocks.parquet` (gold_block_locations), `places.parquet, park_connectors.parquet, fair_value_model.joblib, meta.json` (quality summary, model metrics, intervals, importance, assumptions, walking-time settings, sources). The map and location files are optional: the app runs without them and leaves out what depends on them.

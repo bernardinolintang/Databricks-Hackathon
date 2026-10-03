@@ -53,6 +53,15 @@ const ICONS = {
   shield: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2 3.5 4.6v4.6c0 4 2.8 7.4 6.5 8.8 3.7-1.4 6.5-4.8 6.5-8.8V4.6z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="m7 10 2.1 2.1L13.3 8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   close: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 2l6 6M8 2 2 8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   dot: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.25" fill="currentColor"/><circle cx="8" cy="8" r="2.5" fill="#fff"/></svg>',
+  plus: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M7 2v10M2 7h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  minus: '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 7h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>',
+  // Places. One line weight, drawn for 20px.
+  home: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 9.2 10 3.8l6.5 5.4V16a.8.8 0 0 1-.8.8h-3.4v-4.6H7.7v4.6H4.3a.8.8 0 0 1-.8-.8z"/></svg>',
+  train: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="2.8" width="11" height="11.4" rx="2.6"/><path d="M4.5 8.8h11M7.4 11.6h.1M12.5 11.6h.1M7 14.2l-1.6 3M13 14.2l1.6 3"/></svg>',
+  bus: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.6" y="3.4" width="12.8" height="11.2" rx="2.2"/><path d="M3.6 9.4h12.8M6.6 12h.1M13.3 12h.1M6 14.6v1.8M14 14.6v1.8"/></svg>',
+  school: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.6 7.6 10 4l7.4 3.6L10 11.2z"/><path d="M5.6 9.3v3.9c1.2 1 2.7 1.5 4.4 1.5s3.2-.5 4.4-1.5V9.3M17.4 7.6v4.2"/></svg>',
+  shop: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.4 7.2h11.2l-.8 8.6a1 1 0 0 1-1 .9H6.2a1 1 0 0 1-1-.9z"/><path d="M7.3 7.2V6a2.7 2.7 0 0 1 5.4 0v1.2"/></svg>',
+  park: '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 12.8c-3 0-5-1.9-5-4.5 0-1.900 1.200-3.400 2.800-3.900C8.300 3.400 9.100 2.800 10 2.800s1.700.6 2.200 1.600C13.800 4.900 15 6.400 15 8.300c0 2.600-2 4.500-5 4.500zM10 9.200v8"/></svg>',
 };
 
 export function icon(name) {
@@ -181,7 +190,8 @@ export function toast(message) {
   toastTimer = setTimeout(() => el.remove(), 4200);
 }
 
-export function table(columns, rows, { selectedKey, keyOf, stack = false } = {}) {
+/** `rowAttrs(row, index)` may return extra attributes for a row, e.g. hover handlers. */
+export function table(columns, rows, { selectedKey, keyOf, stack = false, rowAttrs } = {}) {
   return h(
     "div",
     { class: "table-wrap" },
@@ -192,10 +202,10 @@ export function table(columns, rows, { selectedKey, keyOf, stack = false } = {})
       h(
         "tbody",
         {},
-        rows.map((row) =>
+        rows.map((row, index) =>
           h(
             "tr",
-            { class: keyOf && selectedKey && keyOf(row) === selectedKey ? "is-selected" : null },
+            { class: keyOf && selectedKey && keyOf(row) === selectedKey ? "is-selected" : null, ...(rowAttrs ? rowAttrs(row, index) : {}) },
             columns.map((c) => h("td", { class: c.align === "right" ? "r" : null, "data-label": c.label, "data-primary": c.primary ? "" : null }, c.format ? c.format(row[c.key], row) : row[c.key] ?? "n/a")),
           ),
         ),

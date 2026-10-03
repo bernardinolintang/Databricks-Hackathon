@@ -61,6 +61,27 @@
 # COMMAND ----------
 
 # MAGIC %sql
+# MAGIC CREATE OR REPLACE VIEW workspace.flatfair.v_price_by_train_walk
+# MAGIC COMMENT 'Median price and price per sqm by estimated walk to the nearest MRT or LRT station, per town and flat type, over the last 12 complete months. Walking time is straight-line metres x 1.3 / 80 m a minute.'
+# MAGIC AS
+# MAGIC SELECT s.town,
+# MAGIC        s.flat_type,
+# MAGIC        CASE WHEN CEIL(b.train_m * 1.3 / 80) <= 5  THEN '1. up to 5 min'
+# MAGIC             WHEN CEIL(b.train_m * 1.3 / 80) <= 10 THEN '2. 6 to 10 min'
+# MAGIC             WHEN CEIL(b.train_m * 1.3 / 80) <= 15 THEN '3. 11 to 15 min'
+# MAGIC             ELSE '4. over 15 min' END              AS walk_to_station,
+# MAGIC        COUNT(*)                                    AS transactions,
+# MAGIC        PERCENTILE(s.resale_price, 0.5)             AS median_price,
+# MAGIC        PERCENTILE(s.price_per_sqm, 0.5)            AS median_psm
+# MAGIC FROM workspace.flatfair.silver_hdb_resale s
+# MAGIC JOIN workspace.flatfair.gold_block_locations b USING (block, street_name)
+# MAGIC WHERE s.is_valid
+# MAGIC   AND s.month > ADD_MONTHS((SELECT MAX(month) FROM workspace.flatfair.gold_market_monthly), -12)
+# MAGIC GROUP BY 1, 2, 3
+
+# COMMAND ----------
+
+# MAGIC %sql
 # MAGIC -- Sanity check: SQL medians agree with the pandas-built gold table
 # MAGIC SELECT g.town, g.flat_type, g.month, g.median_price AS gold_median, v.median_price AS sql_median
 # MAGIC FROM workspace.flatfair.gold_market_monthly g

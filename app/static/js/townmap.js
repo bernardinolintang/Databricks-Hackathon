@@ -9,9 +9,9 @@ import { flatTypeLabel, int, money, moneyShort, pct, titleCase } from "./format.
 
 const NS = "http://www.w3.org/2000/svg";
 const RAMP = ["#cfeaec", "#9dd3d8", "#5fb6be", "#22939d", "#066b75"];
-const NO_DATA = "#e4e4e9";
-const DISABLED = "#ededf1";
-const SELECTED = "#cc0000"; // the chosen town is filled solid so the whole area reads at a glance
+const NO_DATA = "#dee2e6";
+const DISABLED = "#eef0f2";
+const SELECTED = "#c3141e"; // the chosen town is filled solid so the whole area reads at a glance
 
 let mapPromise = null;
 /** Town shapes, fetched once. Resolves to { available: false } if the build has no map. */
@@ -82,6 +82,26 @@ export function createTownMap({ map, onSelect, onHover, animate = true, label = 
 
   let state = { stats: null, byTown: new Map(), selected: [], colors: {}, enabled: null, breaks: [] };
 
+  // Neighbouring towns have centres close together, so their labels can land on
+  // each other. Each label tries above, below, right and left of its town and
+  // takes the first spot that is clear of the labels already placed.
+  const SIDES = ["", "townmap__label--below", "townmap__label--right", "townmap__label--left"];
+  function placeLabels() {
+    if (!root.isConnected) return;
+    const placed = [];
+    const hits = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+    for (const label of labels.children) {
+      for (const side of SIDES) {
+        label.className = `townmap__label ${side}`.trim();
+        const box = label.getBoundingClientRect();
+        if (!placed.some((other) => hits(box, other))) break;
+      }
+      placed.push(label.getBoundingClientRect());
+    }
+  }
+  // The map scales with its container, and so do the gaps between labels.
+  if ("ResizeObserver" in window) new ResizeObserver(placeLabels).observe(stage);
+
   function describe(name) {
     const row = state.byTown.get(name);
     const title = titleCase(name);
@@ -97,7 +117,7 @@ export function createTownMap({ map, onSelect, onHover, animate = true, label = 
 
   function showTooltip(name, clientX, clientY) {
     const d = describe(name);
-    tooltip.replaceChildren(h("b", {}, d.title), h("span", { class: "townmap__tooltip-value" }, d.value), d.sub ? h("span", {}, d.sub) : "");
+    tooltip.replaceChildren(h("b", {}, d.title), h("span", { class: "townmap__tooltip-value" }, d.value), ...(d.sub ? [h("span", {}, d.sub)] : []));
     tooltip.hidden = false;
     const box = stage.getBoundingClientRect();
     let x, y;
@@ -148,12 +168,14 @@ export function createTownMap({ map, onSelect, onHover, animate = true, label = 
       return;
     }
     const hasGaps = paths.size > values.length;
-    legend.replaceChildren(
+    // replaceChildren would print a missing item as the word "null", so build the list first.
+    const items = [
       h("span", { class: "townmap__legend-end" }, moneyShort(Math.min(...values))),
       h("span", { class: "townmap__ramp", "aria-hidden": "true" }, RAMP.map((c) => h("i", { style: { background: c } }))),
       h("span", { class: "townmap__legend-end" }, moneyShort(Math.max(...values))),
-      hasGaps ? h("span", { class: "townmap__legend-gap" }, h("i", { style: { background: NO_DATA } }), "too few sales") : null,
-    );
+    ];
+    if (hasGaps) items.push(h("span", { class: "townmap__legend-gap" }, h("i", { style: { background: NO_DATA } }), "too few sales"));
+    legend.replaceChildren(...items);
   }
 
   function update({ stats, selected, colors, enabled } = {}) {
@@ -194,6 +216,7 @@ export function createTownMap({ map, onSelect, onHover, animate = true, label = 
         gTowns.append(path);
       }
     }
+    placeLabels();
   }
 
   return { el: root, update, describe };

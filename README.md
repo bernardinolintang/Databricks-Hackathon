@@ -35,10 +35,20 @@ Five steps that carry your choices from one page to the next, so they form a sin
 | **Market** | What is happening? | Median price, YoY, momentum, volume, price spread and $/sqm ranking for any town, flat type, storey band, flat model and year range, with the Oct 2024 classification change marked. Towns are picked on a map of Singapore |
 | **Forecast** | What could prices do in six months? | Monthly-median forecast with an 80% range, a plain-English reading, and the backtest scorecard that chose the method |
 | **Affordability** | Can we afford it? | Monthly repayment, upfront cash (downpayment + stamp duty), repayment-to-income against the 30% MSR cap, a budget, the official median-income benchmark, and *Where can I afford?* across all towns |
-| **Fair value** | Is the asking price in line? | Estimated value today, expected range, where the asking price sits, what each attribute is worth vs a typical flat, and the five most comparable recent sales |
-| **Compare** | What about alternatives? | Up to three towns side by side on price, growth, outlook and repayment share, with generated takeaways |
+| **Fair value** | Is the asking price in line? | Estimated value today, expected range, where the asking price sits, what each attribute is worth vs a typical flat, what is within walking distance of the block, and the five most comparable recent sales pinned on a street map |
+| **Compare** | What about alternatives? | Up to three towns side by side on price, growth, outlook, repayment share and the typical walk to a station, with generated takeaways and the towns shown on the map |
 
 Towns are chosen on a **map of Singapore**: every page opens the same picker, shaded by median price, and the chosen town's whole area lights up. The map is drawn from URA's planning area boundaries, so it needs no map service or API key.
+
+**Location is part of the price.** Two flats with the same size and lease can sell for very different amounts because one is beside the MRT. On the Fair value page you can pick the street and block. FlatFair then:
+
+* fills in the lease from that block and uses the block's location in the estimate, with a "Location" line showing what it is worth against a typical spot in the town;
+* lists what is nearby in five plain rows (train, bus, schools, shops and food, parks), each with an estimated walking time;
+* draws a street map with rings for a 5 and 10 minute walk, the places nearby, park connectors and the five closest recent sales as numbered pins, each with its distance from your block.
+
+All 9,755 blocks with a resale record are placed from HDB's own building outlines. Walking times are estimates from straight-line distance and are labelled as such.
+
+Charts over months can be zoomed: scroll or use the + and − buttons to go from years down to single months, drag to move, double-click to reset.
 
 A **Data Health** panel in the header shows the row counts, nine quality checks and the source timestamp for the data you are looking at.
 
@@ -48,15 +58,20 @@ The layout adapts from a 360 px phone (with a bottom tab bar) to a 2560 px monit
 
 ```
 data.gov.sg (HDB resale, d_8b84c4ee…)      SingStat Table Builder (M810361)
+data.gov.sg (HDB building outlines; LTA stations and bus stops; MOE schools;
+             NEA hawker centres; NParks parks and park connectors)   OpenStreetMap (malls)
         │  bulk snapshot or paginated API, retries, schema check
         ▼
 BRONZE   bronze_hdb_resale · bronze_income · bronze_ingestion_log        (Delta, raw text, snapshot)
+         bronze_hdb_buildings · bronze_places · bronze_park_connectors
         │  parse, type, standardise, 9 validity checks, flag dups/outliers (nothing deleted)
         ▼
 SILVER   silver_hdb_resale  +  gold_data_quality
         │  medians, YoY, momentum, rolling windows, market index, affordability
+        │  match each block to its outline, measure the distance to every kind of place
         ▼
 GOLD     gold_market_monthly · gold_town_summary · gold_market_index · gold_affordability · …
+         gold_block_locations · gold_places · gold_park_connectors
         │                                   │
         ▼                                   ▼
  MLflow: forecast backtest (4 methods)   MLflow: fair value (3 models) → UC model registry
@@ -82,8 +97,16 @@ More: [docs/architecture.md](docs/architecture.md).
 | Resale flat prices based on registration date, Jan 2017 onwards (`d_8b84c4ee58e3cfc0ece0d773c8ca6abc`) | HDB via data.gov.sg | All market analytics, forecast, fair value, comparables | `poll-download` snapshot, or `datastore_search` paged 10,000 rows at a time |
 | Key Indicators on Household Employment Income among Resident Employed Households (`M810361`, series 5) | SingStat Table Builder | Median household income benchmark ($12,027 a month in 2025, including employer CPF) | Table Builder API |
 | Master Plan 2019 Planning Area Boundary, No Sea (`d_4765db0e87b9c86336792efe8a1f7a66`) | URA via data.gov.sg | Shapes for the town map (55 planning areas, simplified to about 2,300 points) | `poll-download` GeoJSON |
+| HDB Existing Building (`d_16b157c52ed637edd6ba1232e026258d`) | HDB via data.gov.sg | Where each block is: 13,436 outlines, matched to all 9,755 blocks with a resale record | `poll-download` GeoJSON |
+| LTA MRT Station Exit (`d_b39d3a0871985372d7e1637193335da5`) | LTA via data.gov.sg | 613 exits of 147 MRT and 41 LRT stations: the walk to the train | `poll-download` GeoJSON |
+| LTA Bus Stop (`d_3f172c6feb3f4f92a2f47d93eed2908a`) | LTA via data.gov.sg | 5,205 bus stops | `poll-download` GeoJSON |
+| General information of schools (`d_688b934f82c1059ed0a6993d2a829089`) | MOE via data.gov.sg | 337 schools (182 primary). The table has addresses only, so each school is placed from its postal code with OneMap | `poll-download` CSV + OneMap search |
+| Hawker Centres (`d_4a086da0a5553be1d89383cd90d07ecd`) | NEA via data.gov.sg | 122 hawker centres in operation | `poll-download` GeoJSON |
+| Parks (`d_0542d48f0991541706b58059381a6eca`) and Park Connector Loop (`d_a69ef89737379f231d2ae93fd1c5707f`) | NParks via data.gov.sg | 211 parks (playgrounds left out) and 1,177 park connector lines | `poll-download` GeoJSON |
+| Shopping malls (`shop=mall`) | OpenStreetMap contributors | 241 malls. No agency publishes a mall list | Overpass API |
+| OneMap base map and search | Singapore Land Authority | The street map behind the pins; school positions | Map tiles, search API |
 
-All three are used under the [Singapore Open Data Licence](https://data.gov.sg/open-data-licence). The HDB Annual Report and SingStat planning-area population are listed in the brief as context. They are deliberately left for after the MVP (see [docs/product_spec.md](docs/product_spec.md)).
+The data.gov.sg and SingStat datasets are used under the [Singapore Open Data Licence](https://data.gov.sg/open-data-licence), OpenStreetMap data under the Open Database Licence, and OneMap under its terms of use with the required credit on every map. The HDB Annual Report and SingStat planning-area population are listed in the brief as context. They are deliberately left for after the MVP (see [docs/product_spec.md](docs/product_spec.md)).
 
 ## 6. Databricks components
 
@@ -109,15 +132,18 @@ All three are used under the [Singapore Open Data Licence](https://data.gov.sg/o
 
 The boosted model had the lowest RMSE but leaned about 1.6% high: it learned 2020 to 2024 momentum and the market flattened in 2025 to 2026. FlatFair therefore publishes the baseline. The 80% range comes from the selected method's own backtest errors, by horizon and by series volume.
 
-**Fair value.** The target is `log(price / market index)`, where the index is the national $/sqm of the three *preceding* months. Inputs are town, flat type, flat model, floor area, storey midpoint, remaining lease and month. The model trains on Jan 2017 to Mar 2026 and is tested on 13,588 sales from Apr to Sep 2026 that it never saw.
+**Fair value.** The target is `log(price / market index)`, where the index is the national $/sqm of the three *preceding* months. Inputs are town, flat type, flat model, floor area, storey midpoint, remaining lease and month, plus eight measures of the block's location: distance to the nearest MRT, the city centre, a mall, a hawker centre, a park and a park connector, primary schools within 1 km and bus stops within 400 m. The model trains on Jan 2017 to Mar 2026 and is tested on 13,588 sales from Apr to Sep 2026 that it never saw.
 
 | Model | MAPE | Median error | Within 10% |
 |---|---|---|---|
 | Rule of thumb: recent town × type $/sqm × size | 12.88% | 9.54% | 51.8% |
-| Ridge regression (one-hot + quadratic numerics) | 7.58% | 6.22% | 71.8% |
-| **Gradient boosting, selected** | **4.99%** | **3.89%** | **88.1%** |
+| Ridge regression (one-hot + quadratic numerics) | 5.96% | 4.84% | 82.4% |
+| Gradient boosting on the flat's own details only | 4.99% | 3.89% | 88.1% |
+| **Gradient boosting with location, selected** | **3.91%** | **2.99%** | **93.8%** |
 
-Expected range: the central 80% of holdout errors, per flat type. Explanations: permutation importance (floor area 31%, town 28%, remaining lease 20%, flat type 11%, flat model 7%, storey 4%) and a per-flat "what moves this estimate" view against the typical flat of that town and type.
+The flat-only model is trained and scored beside the selected one on every run, so what location adds is measured: the typical miss falls from 3.9% to 3.0% and the mean error from $33,900 to $26,300.
+
+Expected range: the central 80% of holdout errors, per flat type. Explanations: permutation importance (floor area 28%, town 20%, remaining lease 20%, flat type 13%, flat model 6%, walk to the MRT 5%, storey 4%, distance to the city centre 3%, the other location measures under 1% each) and a per-flat "what moves this estimate" view against the typical flat of that town and type. When a block is named, that view gains a "Location" line: the same flat priced at the block's location and at a typical spot in the town.
 
 **Affordability.** Annuity repayment at 2.6% over 25 years with 75% loan-to-value (HDB loan defaults, all editable), Buyer's Stamp Duty tiers, and repayment-to-income against the 30% Mortgage Servicing Ratio. "Comfortable" (25% or less) is an illustrative product threshold and is labelled as one.
 
@@ -133,20 +159,22 @@ The latest run read 241,920 rows and passed all 9 checks: positive price and are
 * **1,075 unusual prices per sqm** (more than 5 robust SDs within town × type × year) are flagged and kept. Inspection shows premium DBSS blocks and short-lease flats, which the model can explain.
 * **The current month** is still being registered (212 rows for Oct 2026 at pull time), so analysis stops at Sep 2026.
 * **1-room and multi-generation flats** (178 sales) are excluded from modelling as too sparse, and remain in market views.
+* **Addresses without coordinates.** Resale records name a block and street; HDB's building outlines name the street by a code. The pipeline works out which code each of the 580 streets uses and places all 9,755 blocks. A spot check of 40 addresses against OneMap put them a median of 6 m apart, none more than 36 m.
+* **Station exits with a code for a name** (`CC9`, `NE18` and five more) are given their station names.
 
 ## 9. Run it locally
 
 ```bash
 python -m venv .venv && .venv/Scripts/activate      # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-pipeline.txt
-python run_pipeline.py                 # ingest → transform → gold → forecast → fair value → publish (~4 min)
+python run_pipeline.py                 # ingest → transform → gold → boundaries → places → forecast → fair value → publish (~12 min the first time)
 uvicorn app.main:app --reload          # http://127.0.0.1:8000
-pytest                                 # 77 tests: parsers, cleaning, features, models, affordability, town map, API journey
-python tests/ui_check.py               # layout check at nine screen sizes (needs: pip install playwright, and the app running)
+pytest                                 # 110 tests: parsers, cleaning, features, locations, models, affordability, town map, API journey
+python tests/ui_check.py               # every page at nine screen sizes in a real browser, plus the maps, address picker and chart zoom (needs: pip install playwright, and the app running)
 mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db   # experiment tracking
 ```
 
-`python run_pipeline.py ingest --method api` uses the paginated datastore API instead of the bulk snapshot.
+`python run_pipeline.py ingest --method api` uses the paginated datastore API instead of the bulk snapshot. The `places` step spends most of its time placing 337 schools with OneMap, which allows about one lookup a second without a token; later runs only look up schools that are new. `python run_pipeline.py places --reuse-places` rebuilds the block locations from what was already downloaded. If the place sources cannot be reached, the step is skipped: the price model trains without location and the app leaves out its street map.
 
 ## 10. Run it on Databricks (Free Edition)
 
@@ -164,6 +192,8 @@ Live at **https://flatfair-nine.vercel.app**. The same FastAPI app deploys to Ve
 
 * **Forecasts** describe the monthly median, not any single flat. They do not use interest rates, BTO supply or policy announcements. In the 2025 to 2026 data they are mostly "about where it is now".
 * **Fair value** cannot see renovation, exact unit, facing, view, noise or negotiation. The range matters more than the point estimate.
+* **Walking times** are estimates: straight-line distance, taken as 30% longer on foot, at 80 m a minute. A real route can be longer where a road, canal or expressway is in the way. The app says so beside every map.
+* **Location measures** use today's stations, schools and malls for every year of sales, so a 2017 sale near a station that opened in 2022 is described as near it. Malls come from OpenStreetMap and a few small ones may be missing.
 * **Town medians** shift with the mix of flats sold. A falling median can reflect smaller flats selling, not falling prices.
 * **The October 2024 classification change** applies to new BTO flats. Resale records carry no Standard, Plus or Prime field, so any before/after shift is shown as an association only.
 * **The income benchmark** includes employer CPF contributions. That differs from the gross income used for MSR, so the comparison is indicative.
@@ -171,11 +201,11 @@ Live at **https://flatfair-nine.vercel.app**. The same FastAPI app deploys to Ve
 
 ## 13. Responsible use
 
-* Only public, aggregated open data is used. FlatFair collects no identity. Inputs stay in the browser and in the request that computes the answer; journey choices persist only in the visitor's own browser storage.
+* Only public, aggregated open data is used. FlatFair collects no identity. Inputs stay in the browser and in the request that computes the answer; journey choices persist only in the visitor's own browser storage. The street map is drawn from OneMap, so opening it sends the visitor's IP address and the area viewed to OneMap. The app's Privacy page says this in plain words.
 * Historical patterns do not guarantee future market movements.
 * Fair value estimates are statistical estimates and do not account for every unit-specific characteristic.
 * Affordability calculations are informational and not financial advice.
-* FlatFair is an independent student project. It is **not affiliated with or endorsed by HDB**. It uses an HDB-inspired colour palette and credits HDB as the data publisher, but does not use HDB's logo or present itself as an official service.
+* FlatFair is an independent student project. It is **not affiliated with or endorsed by HDB**. Its look follows Singapore public housing sites (the Hanken Grotesk typeface, teal and red, bordered cards, a dark footer) so it feels familiar, and it credits HDB as the data publisher. It uses its own mark, no agency logo and no government masthead, and says it is unaffiliated in the footer of every page and on its About, Terms and Privacy pages.
 
 ## 14. Screenshots
 
@@ -192,7 +222,7 @@ See [docs/demo_script.md](docs/demo_script.md): six scenes, presenter handoffs, 
 ## 16. Repository
 
 ```
-app/            FastAPI app (main.py), services, static front end (HTML/CSS/JS, vendored ECharts + Inter)
+app/            FastAPI app (main.py), services, static front end (HTML/CSS/JS, vendored ECharts, Leaflet and Hanken Grotesk)
 src/flatfair/   ingestion, transformation, features, models, affordability, governance, pipeline
 notebooks/      Databricks notebooks 00 to 07
 config/         config.yaml: every tunable value
@@ -204,8 +234,8 @@ data/serving/   published bundle the hosted app serves
 
 ## 17. Credits
 
-* **Data:** Housing & Development Board (HDB) resale flat prices via data.gov.sg; Singapore Department of Statistics, Table Builder M810361; Urban Redevelopment Authority, Master Plan 2019 planning area boundaries via data.gov.sg. Singapore Open Data Licence.
+* **Data:** Housing & Development Board (HDB) resale flat prices and existing building outlines; Land Transport Authority (MRT station exits, bus stops); Ministry of Education (general information of schools); National Environment Agency (hawker centres); National Parks Board (parks, park connector loop); Urban Redevelopment Authority (Master Plan 2019 planning area boundaries), all via data.gov.sg under the Singapore Open Data Licence. Singapore Department of Statistics, Table Builder M810361. Shopping malls © OpenStreetMap contributors (ODbL). Base map and geocoding: OneMap, Singapore Land Authority.
 * **Libraries:** pandas, NumPy, scikit-learn, MLflow, FastAPI, Uvicorn, PyArrow, PyYAML, Requests (BSD / Apache-2.0 / MIT).
-* **Front end:** [Apache ECharts](https://echarts.apache.org) (Apache-2.0), [Inter](https://rsms.me/inter/) typeface by Rasmus Andersson (SIL Open Font License).
+* **Front end:** [Apache ECharts](https://echarts.apache.org) (Apache-2.0), [Leaflet](https://leafletjs.com) (BSD-2-Clause), [Hanken Grotesk](https://fonts.google.com/specimen/Hanken+Grotesk) typeface by Alfredo Marco Pradil (SIL Open Font License).
 * **Platform:** Databricks Free Edition (Delta Lake, Unity Catalog, MLflow, Databricks Apps); Vercel for the public demo.
 * **Tooling:** built with help from Claude Code (Anthropic).

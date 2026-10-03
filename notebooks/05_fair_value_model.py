@@ -5,9 +5,12 @@
 # MAGIC
 # MAGIC * **Target**: `log(price / market index)`, where the index is the national $ per sqm of the *preceding* three months.
 # MAGIC   The model learns how attributes move price; the latest index brings the estimate to today's level.
-# MAGIC * **Inputs**: town, flat type, flat model, floor area, storey midpoint, remaining lease, transaction month.
+# MAGIC * **Inputs**: town, flat type, flat model, floor area, storey midpoint, remaining lease, transaction month, and the
+# MAGIC   block's location from notebook 03 (distance to the MRT, city centre, mall, hawker centre, park and park connector,
+# MAGIC   primary schools within 1 km, bus stops within 400 m).
 # MAGIC * **Validation**: train up to six months ago, test on the last six months of sales the model never saw.
-# MAGIC * **Candidates**: a hand rule (recent town × type $ per sqm × size), ridge regression, gradient boosting.
+# MAGIC * **Candidates**: a hand rule (recent town × type $ per sqm × size), ridge regression, gradient boosting, and the same
+# MAGIC   gradient boosting without location, so what location adds is measured.
 # MAGIC * **Range**: the central 80% of holdout errors, per flat type. **Explanation**: permutation importance.
 # MAGIC
 # MAGIC The selected model is refitted on all data, registered as `workspace.flatfair.flatfair_fair_value`, and saved to the

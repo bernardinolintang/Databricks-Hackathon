@@ -9,6 +9,7 @@
 # MAGIC * `gold_affordability`: repayment and price-to-income at the official median household income
 # MAGIC * `gold_comparable_transactions`: the search space for comparable sales
 # MAGIC * `bronze_planning_areas` and `gold_town_map`: URA planning area boundaries from data.gov.sg, simplified into the town map the app draws
+# MAGIC * `bronze_hdb_buildings`, `bronze_places`, `bronze_park_connectors` and `gold_block_locations`: where each block is, and its distance to trains, buses, schools, shops and parks
 # MAGIC
 # MAGIC Medians, not means: a few million-dollar sales pull a town's mean a long way.
 
@@ -34,6 +35,28 @@ pipeline.step_gold(store, cfg)
 # To use a file, download the GeoJSON from the dataset page, upload it to the volume and set the widget.
 dbutils.widgets.text("boundaries_file", "", "Uploaded planning area GeoJSON (optional)")
 pipeline.step_boundaries(store, cfg, source_file=dbutils.widgets.get("boundaries_file").strip() or None)
+
+# COMMAND ----------
+
+# Block locations and nearby places. Also optional: without them the price model trains on the flat's own
+# details and the app leaves out its street map. Placing the schools takes about seven minutes the first
+# time (OneMap allows roughly one lookup a second); later runs only look up schools that are new.
+places = pipeline.step_places(store, cfg)
+places
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- How far the typical 4-room flat sold in the last two years is from a station, by town
+# MAGIC SELECT s.town,
+# MAGIC        COUNT(*)                                       AS sales,
+# MAGIC        ROUND(PERCENTILE(b.train_m, 0.5))              AS metres_to_station,
+# MAGIC        CEIL(PERCENTILE(b.train_m, 0.5) * 1.3 / 80)    AS walk_minutes
+# MAGIC FROM workspace.flatfair.silver_hdb_resale s
+# MAGIC JOIN workspace.flatfair.gold_block_locations b USING (block, street_name)
+# MAGIC WHERE s.is_valid AND s.flat_type = '4 ROOM' AND s.month >= ADD_MONTHS(CURRENT_DATE(), -24)
+# MAGIC GROUP BY s.town
+# MAGIC ORDER BY metres_to_station
 
 # COMMAND ----------
 

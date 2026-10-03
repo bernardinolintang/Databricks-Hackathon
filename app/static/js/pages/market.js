@@ -32,12 +32,13 @@ export async function render(root, { meta }) {
   root.append(body);
 
   const kpiRow = h("div", { class: "grid grid--4" }, [0, 1, 2, 3].map(() => skeleton(124)));
-  const headline = h("div");
+  const headline = h("div", { class: "reading" });
   body.append(h("section", { class: "wrap section--tight" }, headline), h("section", { class: "wrap section" }, kpiRow));
 
   let last = null;
   const priceCard = chartCard({
     title: "Median resale price",
+    zoom: true,
     sub: "Median price each month. The shaded band is the middle half of sales.",
     legend: [
       { label: "Median price", color: C.s1 },
@@ -59,6 +60,7 @@ export async function render(root, { meta }) {
   });
   const volumeCard = chartCard({
     title: "Flats sold",
+    zoom: true,
     sub: "Resale flats sold each month.",
     height: 240,
     tableView: () =>
@@ -124,11 +126,24 @@ export async function render(root, { meta }) {
     fill(
       row,
       townField({ id: "f-town", value: filters.town, allowAll: true, getFlatType: () => filters.flat_type, onChange: (v) => set({ town: v }), grow: true }),
-      chipGroup({ label: "Flat type", options: types, value: filters.flat_type, onChange: (v) => set({ flat_type: v, flat_model: "ALL" }), grow: true }),
+      chipGroup({ label: "Flat type", options: types, value: filters.flat_type, onChange: (v) => set({ flat_type: v, flat_model: "ALL" }) }),
       select({ id: "f-storey", label: "Storey", options: storeys, value: filters.storey, onChange: (v) => set({ storey: v }) }),
       select({ id: "f-model", label: "Flat model", options: modelOptions(), value: filters.flat_model, onChange: (v) => set({ flat_model: v }) }),
-      select({ id: "f-from", label: "From", options: years, value: filters.year_from, onChange: (v) => set({ year_from: Number(v) }) }),
-      select({ id: "f-to", label: "To", options: years, value: filters.year_to, onChange: (v) => set({ year_to: Number(v) }) }),
+      // The two years stay side by side, so "to" never ends up alone on a line.
+      h(
+        "div",
+        { class: "field", role: "group", "aria-labelledby": "f-years" },
+        h("span", { id: "f-years" }, "Years"),
+        h("div", { class: "pair" }, yearSelect("f-from", "First year", filters.year_from, (v) => set({ year_from: v })), h("span", {}, "to"), yearSelect("f-to", "Last year", filters.year_to, (v) => set({ year_to: v }))),
+      ),
+    );
+  }
+
+  function yearSelect(id, label, value, onChange) {
+    return h(
+      "select",
+      { class: "select", id, "aria-label": label, onchange: (e) => onChange(Number(e.target.value)) },
+      years.map(([year, text]) => h("option", { value: year, selected: year === value }, text)),
     );
   }
 

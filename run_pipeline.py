@@ -25,13 +25,14 @@ def main() -> int:
     parser.add_argument("--method", choices=["bulk", "api"], help="ingestion method (default: config)")
     parser.add_argument("--no-mlflow", action="store_true", help="skip MLflow logging")
     parser.add_argument("--boundaries-file", help="planning area GeoJSON downloaded from data.gov.sg (skips the download)")
+    parser.add_argument("--reuse-places", action="store_true", help="rebuild block locations from the places already downloaded")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s", datefmt="%H:%M:%S")
     cfg = load_config()
     data_dir = local_data_dir(cfg)
     store = LocalStore(data_dir)
-    results = run(store, cfg, data_dir / "serving", steps=args.steps or None, method=args.method, track=not args.no_mlflow, boundaries_file=args.boundaries_file)
+    results = run(store, cfg, data_dir / "serving", steps=args.steps or None, method=args.method, track=not args.no_mlflow, boundaries_file=args.boundaries_file, fetch_places=not args.reuse_places)
 
     print("\nPipeline finished:", ", ".join(results))
     if "transform" in results:
@@ -43,6 +44,9 @@ def main() -> int:
     if "boundaries" in results:
         b = results["boundaries"]
         print("  town map:", f"{b['towns_drawn']} towns, {b['points']:,} points" if b.get("available") else f"skipped ({b.get('reason')})")
+    if "places" in results:
+        p = results["places"]
+        print("  block locations:", f"{p['blocks']:,} blocks, {p['sales_on_own_outline_pct']}% of sales placed on their own block" if p.get("available") else f"skipped ({p.get('reason')})")
     if "fairvalue" in results:
         print("  fair value model:", results["fairvalue"]["selected_model"])
     return 0

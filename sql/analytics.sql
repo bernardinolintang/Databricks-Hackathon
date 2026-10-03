@@ -56,3 +56,31 @@ FROM workspace.flatfair.gold_data_quality;
 SELECT ingested_at, method, rows, api_total_rows, source_last_updated, snapshot_sha256
 FROM workspace.flatfair.bronze_ingestion_log
 ORDER BY ingested_at DESC;
+
+-- 10. Is a short walk to the train worth more? 4-room flats, national, last 12 months
+SELECT walk_to_station,
+       SUM(transactions)                                                     AS transactions,
+       ROUND(SUM(median_psm * transactions) / SUM(transactions))             AS avg_of_town_median_psm
+FROM workspace.flatfair.v_price_by_train_walk
+WHERE flat_type = '4 ROOM'
+GROUP BY walk_to_station
+ORDER BY walk_to_station;
+
+-- 11. What is near a block: the measures the price model learns from
+SELECT town, block, street_name, location_source,
+       train_name, train_kind, ROUND(train_m) AS metres_to_station,
+       bus_stops_400m, primary_schools_1km,
+       mall_name, ROUND(mall_m) AS metres_to_mall,
+       hawker_name, ROUND(hawker_m) AS metres_to_hawker_centre,
+       park_name, ROUND(park_m) AS metres_to_park, ROUND(connector_m) AS metres_to_park_connector,
+       city_km
+FROM workspace.flatfair.gold_block_locations
+WHERE town = 'TAMPINES'
+ORDER BY train_m
+LIMIT 50;
+
+-- 12. Places by kind and source
+SELECT category, kind, COUNT(*) AS places
+FROM workspace.flatfair.gold_places
+GROUP BY category, kind
+ORDER BY category, kind;

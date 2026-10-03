@@ -9,6 +9,11 @@ on their own; this is what keeps the estimate current.
 
 Evaluation holds out the most recent months. Because the index for a month uses
 only earlier months, the held-out prices never leak into their own prediction.
+
+When block locations are available the model also learns from what is near the
+block: the walk to the MRT, shops, food, parks, schools and buses. The same
+model without those inputs is scored beside it, so what location adds is
+measured and not assumed.
 """
 
 from __future__ import annotations
@@ -20,10 +25,13 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.impute import SimpleImputer
 from sklearn.inspection import permutation_importance
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, PolynomialFeatures, StandardScaler
+
+from flatfair.features.location import LOCATION_FEATURES, LOCATION_LABELS
 
 CATEGORICAL = ["town", "flat_type", "flat_model"]
 NUMERIC = ["floor_area_sqm", "storey_mid", "remaining_lease_years", "months_since_start"]
@@ -38,9 +46,12 @@ FEATURE_LABELS = {
     "storey_mid": "Storey",
     "remaining_lease_years": "Remaining lease",
     "months_since_start": "Transaction date",
+    **LOCATION_LABELS,
 }
 MODEL_NAMES = ["comparable_median", "ridge", "gradient_boosting"]
 BASELINE_MODEL = "comparable_median"
+# Gradient boosting on the flat's own details only: the yardstick for what location adds.
+FLAT_ONLY_MODEL = "gradient_boosting_flat_only"
 
 
 @dataclass
@@ -52,6 +63,8 @@ class FairValueResult:
     importance: pd.DataFrame
     holdout_predictions: pd.DataFrame
     info: dict[str, Any] = field(default_factory=dict)
+    # A few training rows in the shape the served model expects (for MLflow).
+    example: pd.DataFrame | None = None
 
 
 def coerce_features(frame: pd.DataFrame) -> pd.DataFrame:
@@ -64,10 +77,22 @@ def coerce_features(frame: pd.DataFrame) -> pd.DataFrame:
     out = frame.copy()
     for column in CATEGORICAL:
         out[column] = out[column].astype(str)
-    for column in NUMERIC:
+    for column in NUMERIC + LOCATION_FEATURES:
         if column in out.columns:
             out[column] = pd.to_numeric(out[column], errors="raise").astype("float64")
     return out
+
+
+def attach_location(transactions: pd.DataFrame, block_locations: pd.DataFrame | None) -> tuple[pd.DataFrame, list[str]]:
+    """Add each sale's block location features. Returns the frame and the
+    features that actually carry data (a place source may have been unavailable)."""
+    if block_locations is None or not {"block", "street_name"}.issubset(transactions.columns):
+        return transactions, []
+    present = [f for f in LOCATION_FEATURES if f in block_locations.columns and block_locations[f].notna().any()]
+    if not present:
+        return transactions, []
+    lookup = block_locations.drop_duplicates(["block", "street_name"])[["block", "street_name", *present]]
+    return transactions.merge(lookup, on=["block", "street_name"], how="left"), present
 
 
 def modelling_frame(transactions: pd.DataFrame, market_index: pd.DataFrame) -> pd.DataFrame:
@@ -79,26 +104,31 @@ def modelling_frame(transactions: pd.DataFrame, market_index: pd.DataFrame) -> p
     return frame
 
 
-def _ridge_pipeline(cfg: dict[str, Any]) -> Pipeline:
+def _ridge_pipeline(cfg: dict[str, Any], numeric_features: list[str] = NUMERIC) -> Pipeline:
     numeric = Pipeline(
-        [("scale", StandardScaler()), ("curve", PolynomialFeatures(degree=2, include_bias=False))]
+        [
+            # A block that could not be placed has no location; ridge needs a number.
+            ("fill", SimpleImputer(strategy="median")),
+            ("scale", StandardScaler()),
+            ("curve", PolynomialFeatures(degree=2, include_bias=False)),
+        ]
     )
     prep = ColumnTransformer(
         [
             ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL),
-            ("num", numeric, NUMERIC),
+            ("num", numeric, numeric_features),
         ]
     )
     return Pipeline([("prep", prep), ("model", Ridge(alpha=cfg["fair_value"]["ridge_alpha"]))])
 
 
-def _gbm_pipeline(cfg: dict[str, Any]) -> Pipeline:
+def _gbm_pipeline(cfg: dict[str, Any], numeric_features: list[str] = NUMERIC) -> Pipeline:
     params = cfg["fair_value"]["gbm"]
     prep = ColumnTransformer(
         [
             # Categories unseen in training become missing, which the trees handle natively.
             ("cat", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=np.nan), CATEGORICAL),
-            ("num", "passthrough", NUMERIC),
+            ("num", "passthrough", numeric_features),
         ]
     )
     model = HistGradientBoostingRegressor(
@@ -138,16 +168,29 @@ def _score(actual: np.ndarray, predicted: np.ndarray) -> dict[str, float]:
     }
 
 
+def model_features(model: Pipeline) -> list[str]:
+    """The columns a fitted model was trained on, in order."""
+    return list(model.feature_names_in_)
+
+
 def _to_price(model: Pipeline, frame: pd.DataFrame) -> np.ndarray:
-    return np.exp(model.predict(frame[FEATURES])) * frame["market_index_psm"].to_numpy()
+    return np.exp(model.predict(frame[model_features(model)])) * frame["market_index_psm"].to_numpy()
 
 
-def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_month: pd.Timestamp, cfg: dict[str, Any]) -> FairValueResult:
+def train_fair_value(
+    silver: pd.DataFrame,
+    market_index: pd.DataFrame,
+    last_month: pd.Timestamp,
+    cfg: dict[str, Any],
+    block_locations: pd.DataFrame | None = None,
+) -> FairValueResult:
     fv = cfg["fair_value"]
     # `exclude_from_model` covers invalid records and flat types too sparse to
     # model; flagged price outliers are deliberately kept (see clean.py).
     usable = silver[~silver["exclude_from_model"] & (silver["month"] <= last_month)]
+    usable, location = attach_location(usable, block_locations)
     frame = modelling_frame(usable, market_index)
+    features = FEATURES + location
 
     holdout_start = last_month - pd.DateOffset(months=fv["holdout_months"] - 1)
     train = frame[frame["month"] < holdout_start]
@@ -155,14 +198,19 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
     if train.empty or holdout.empty:
         raise ValueError("Not enough data to split fair value training and holdout sets")
 
-    candidates = {"ridge": _ridge_pipeline(cfg), "gradient_boosting": _gbm_pipeline(cfg)}
+    candidates = {"ridge": _ridge_pipeline(cfg, NUMERIC + location), "gradient_boosting": _gbm_pipeline(cfg, NUMERIC + location)}
+    candidate_features = {name: features for name in candidates}
+    if location:
+        candidates[FLAT_ONLY_MODEL] = _gbm_pipeline(cfg)
+        candidate_features[FLAT_ONLY_MODEL] = FEATURES
+    model_names = [BASELINE_MODEL, *candidates]
     actual = holdout["resale_price"].to_numpy()
     predictions = {"comparable_median": _comparable_median_predict(train, holdout)}
     for name, pipeline in candidates.items():
-        pipeline.fit(train[FEATURES], train["target"])
+        pipeline.fit(train[candidate_features[name]], train["target"])
         predictions[name] = _to_price(pipeline, holdout)
 
-    metrics = pd.DataFrame([{"model": name, **_score(actual, predictions[name])} for name in MODEL_NAMES])
+    metrics = pd.DataFrame([{"model": name, **_score(actual, predictions[name])} for name in model_names])
     baseline_mae = metrics.loc[metrics["model"] == BASELINE_MODEL, "mae"].iloc[0]
     metrics["mae_vs_baseline_pct"] = ((metrics["mae"] / baseline_mae - 1) * 100).round(2)
     # Only a fitted model can be served; the hand-rule baseline is a yardstick.
@@ -170,7 +218,7 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
     metrics["selected"] = metrics["model"] == selected
 
     holdout_predictions = holdout[["month", "town", "flat_type", "resale_price"]].copy()
-    for name in MODEL_NAMES:
+    for name in model_names:
         holdout_predictions[f"pred_{name}"] = predictions[name]
 
     # Expected range: the central share of holdout errors, per flat type.
@@ -192,9 +240,11 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
     intervals = pd.DataFrame(interval_rows)
 
     sample = holdout.sample(min(len(holdout), fv["permutation_sample"]), random_state=fv["random_state"])
+    features = candidate_features[selected]
+    location = [f for f in features if f in LOCATION_FEATURES]
     permutation = permutation_importance(
         candidates[selected],
-        sample[FEATURES],
+        sample[features],
         sample["target"],
         n_repeats=3,
         random_state=fv["random_state"],
@@ -202,8 +252,8 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
     )
     importance = pd.DataFrame(
         {
-            "feature": FEATURES,
-            "label": [FEATURE_LABELS[f] for f in FEATURES],
+            "feature": features,
+            "label": [FEATURE_LABELS[f] for f in features],
             # Increase in mean absolute log error when the feature is shuffled.
             "importance": permutation.importances_mean,
         }
@@ -212,13 +262,14 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
 
     # Serve a model refitted on everything, so the newest sales inform estimates.
     final_train = frame
-    final_model = _ridge_pipeline(cfg) if selected == "ridge" else _gbm_pipeline(cfg)
-    final_model.fit(final_train[FEATURES], final_train["target"])
+    final_model = _ridge_pipeline(cfg, NUMERIC + location) if selected == "ridge" else _gbm_pipeline(cfg, NUMERIC + location)
+    final_model.fit(final_train[features], final_train["target"])
 
     info = {
         "selected_model": selected,
         "baseline_model": BASELINE_MODEL,
-        "features": FEATURES,
+        "features": features,
+        "location_features": location,
         "target": "log(resale_price / market_index_psm)",
         "training_period": [train["month"].min().strftime("%Y-%m"), train["month"].max().strftime("%Y-%m")],
         "holdout_period": [holdout["month"].min().strftime("%Y-%m"), holdout["month"].max().strftime("%Y-%m")],
@@ -229,14 +280,18 @@ def train_fair_value(silver: pd.DataFrame, market_index: pd.DataFrame, last_mont
         "price_outliers_kept": int(frame["is_price_outlier"].sum()),
         "interval_level": level,
     }
-    return FairValueResult(final_model, metrics, selected, intervals, importance, holdout_predictions, info)
+    return FairValueResult(final_model, metrics, selected, intervals, importance, holdout_predictions, info, example=final_train[features].head(5))
 
 
 def predict_price(model: Pipeline, flats: pd.DataFrame, market_index_psm: float, months_since_start: int) -> np.ndarray:
-    """Estimate today's price for flats described by INPUT_FEATURES."""
-    missing = [c for c in INPUT_FEATURES if c not in flats.columns]
+    """Estimate today's price for flats described by INPUT_FEATURES, plus the
+    location features if the model was trained with them. A missing location
+    value is allowed: the model treats it as unknown."""
+    features = model_features(model)
+    needed = [c for c in features if c != "months_since_start"]
+    missing = [c for c in needed if c not in flats.columns]
     if missing:
         raise ValueError(f"Fair value input is missing columns: {missing}")
-    frame = flats[INPUT_FEATURES].copy()
+    frame = flats[needed].copy()
     frame["months_since_start"] = months_since_start
-    return np.exp(model.predict(coerce_features(frame)[FEATURES])) * market_index_psm
+    return np.exp(model.predict(coerce_features(frame)[features])) * market_index_psm

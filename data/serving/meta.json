@@ -1,6 +1,6 @@
 {
   "flatfair_version": "0.1.0",
-  "generated_at": "2026-10-03T12:37:43+00:00",
+  "generated_at": "2026-10-03T14:12:31+00:00",
   "last_complete_month": "2026-09",
   "quality": {
     "total_rows": 241920,
@@ -535,7 +535,25 @@
       "floor_area_sqm",
       "storey_mid",
       "remaining_lease_years",
-      "months_since_start"
+      "months_since_start",
+      "mrt_m",
+      "city_km",
+      "mall_m",
+      "hawker_m",
+      "park_m",
+      "connector_m",
+      "primary_schools_1km",
+      "bus_stops_400m"
+    ],
+    "location_features": [
+      "mrt_m",
+      "city_km",
+      "mall_m",
+      "hawker_m",
+      "park_m",
+      "connector_m",
+      "primary_schools_1km",
+      "bus_stops_400m"
     ],
     "target": "log(resale_price / market_index_psm)",
     "training_period": [
@@ -570,18 +588,30 @@
       },
       {
         "model": "ridge",
-        "mae": 50327.372503378974,
-        "rmse": 68622.85605575741,
-        "mape": 7.5846143504256975,
-        "median_ape": 6.2189990210629515,
-        "within_5pct": 41.44833676773624,
-        "within_10pct": 71.79128642920224,
+        "mae": 40085.33667906602,
+        "rmse": 56507.821044595796,
+        "mape": 5.962708683368994,
+        "median_ape": 4.835923312706288,
+        "within_5pct": 51.48660582867236,
+        "within_10pct": 82.36679423020313,
         "n": 13588,
-        "mae_vs_baseline_pct": -43.76,
+        "mae_vs_baseline_pct": -55.2,
         "selected": false
       },
       {
         "model": "gradient_boosting",
+        "mae": 26283.63985757905,
+        "rmse": 38883.64161328404,
+        "mape": 3.913472538130231,
+        "median_ape": 2.988970816996586,
+        "within_5pct": 71.76920812481602,
+        "within_10pct": 93.78127759788049,
+        "n": 13588,
+        "mae_vs_baseline_pct": -70.63,
+        "selected": true
+      },
+      {
+        "model": "gradient_boosting_flat_only",
         "mae": 33889.97352037879,
         "rmse": 49382.86390390386,
         "mape": 4.992148517306049,
@@ -590,45 +620,93 @@
         "within_10pct": 88.11451280541654,
         "n": 13588,
         "mae_vs_baseline_pct": -62.13,
-        "selected": true
+        "selected": false
       }
     ],
     "importance": [
       {
         "feature": "floor_area_sqm",
         "label": "Floor area",
-        "importance": 0.13543276027917847,
-        "share_pct": 30.2
+        "importance": 0.13320631908207828,
+        "share_pct": 27.5
       },
       {
         "feature": "town",
         "label": "Town",
-        "importance": 0.1243341758047694,
-        "share_pct": 27.8
+        "importance": 0.09896288395764848,
+        "share_pct": 20.4
       },
       {
         "feature": "remaining_lease_years",
         "label": "Remaining lease",
-        "importance": 0.08822085254022911,
-        "share_pct": 19.7
+        "importance": 0.09609039663177195,
+        "share_pct": 19.8
       },
       {
         "feature": "flat_type",
         "label": "Flat type",
-        "importance": 0.05003006478000727,
-        "share_pct": 11.2
+        "importance": 0.060383640240496333,
+        "share_pct": 12.5
       },
       {
         "feature": "flat_model",
         "label": "Flat model",
-        "importance": 0.030192464620466486,
-        "share_pct": 6.7
+        "importance": 0.027018427028309727,
+        "share_pct": 5.6
+      },
+      {
+        "feature": "mrt_m",
+        "label": "Walk to the MRT",
+        "importance": 0.024988889351699906,
+        "share_pct": 5.2
       },
       {
         "feature": "storey_mid",
         "label": "Storey",
-        "importance": 0.019637340950604314,
+        "importance": 0.02132741328539271,
         "share_pct": 4.4
+      },
+      {
+        "feature": "city_km",
+        "label": "Distance to the city centre",
+        "importance": 0.012163475971550252,
+        "share_pct": 2.5
+      },
+      {
+        "feature": "mall_m",
+        "label": "Walk to a mall",
+        "importance": 0.004520996592381606,
+        "share_pct": 0.9
+      },
+      {
+        "feature": "hawker_m",
+        "label": "Walk to a hawker centre",
+        "importance": 0.0018081507408580823,
+        "share_pct": 0.4
+      },
+      {
+        "feature": "park_m",
+        "label": "Walk to a park",
+        "importance": 0.0015069267916066077,
+        "share_pct": 0.3
+      },
+      {
+        "feature": "connector_m",
+        "label": "Walk to a park connector",
+        "importance": 0.0011951080651550667,
+        "share_pct": 0.2
+      },
+      {
+        "feature": "bus_stops_400m",
+        "label": "Bus stops nearby",
+        "importance": 0.0005354217520186014,
+        "share_pct": 0.1
+      },
+      {
+        "feature": "primary_schools_1km",
+        "label": "Primary schools within 1 km",
+        "importance": 0.00041271557603037484,
+        "share_pct": 0.1
       },
       {
         "feature": "months_since_start",
@@ -640,45 +718,45 @@
     "intervals": [
       {
         "flat_type": "ALL",
-        "lower_log": -0.08214644916097322,
-        "upper_log": 0.07305815896631826,
+        "lower_log": -0.06667156965788412,
+        "upper_log": 0.0551412038483393,
         "n_errors": 13588
       },
       {
         "flat_type": "2 ROOM",
-        "lower_log": -0.06813556138019972,
-        "upper_log": 0.061964089708292605,
+        "lower_log": -0.0631154988952611,
+        "upper_log": 0.05789748856520718,
         "n_errors": 400
       },
       {
         "flat_type": "3 ROOM",
-        "lower_log": -0.0924657856782835,
-        "upper_log": 0.0655677686426464,
+        "lower_log": -0.08011291010391856,
+        "upper_log": 0.052342728786283696,
         "n_errors": 3071
       },
       {
         "flat_type": "4 ROOM",
-        "lower_log": -0.07868252436404911,
-        "upper_log": 0.06952509602652743,
+        "lower_log": -0.06146312503430201,
+        "upper_log": 0.051195690626304385,
         "n_errors": 5973
       },
       {
         "flat_type": "5 ROOM",
-        "lower_log": -0.08457039037301076,
-        "upper_log": 0.08611755928769038,
+        "lower_log": -0.067802591137476,
+        "upper_log": 0.06185884725234898,
         "n_errors": 3238
       },
       {
         "flat_type": "EXECUTIVE",
-        "lower_log": -0.07579580437707349,
-        "upper_log": 0.087365891826124,
+        "lower_log": -0.05687578945970519,
+        "upper_log": 0.06776210399915539,
         "n_errors": 906
       }
     ],
     "market_index_psm_now": 6435.64,
     "months_since_start_now": 117,
     "valuation_month": "2026-10",
-    "mlflow_run_id": "bab3f16d2ae04452be96e860d998f5af"
+    "mlflow_run_id": "e0b6b6ce6342413c9edd26ebd0bb17ac"
   },
   "affordability_assumptions": {
     "loan_to_value": 0.75,
@@ -719,7 +797,8 @@
     "scale_floor_area_sqm": 10.0,
     "scale_storey": 6.0,
     "scale_lease_years": 8.0,
-    "scale_recency_months": 12.0
+    "scale_recency_months": 12.0,
+    "scale_distance_m": 600.0
   },
   "policy_events": [
     {
@@ -742,6 +821,72 @@
       "dataset_id": "d_4765db0e87b9c86336792efe8a1f7a66",
       "name": "Master Plan 2019 Planning Area Boundary (No Sea)",
       "publisher": "Urban Redevelopment Authority (via data.gov.sg)"
+    },
+    "hdb_buildings": {
+      "dataset_id": "d_16b157c52ed637edd6ba1232e026258d",
+      "name": "HDB Existing Building",
+      "publisher": "Housing & Development Board (via data.gov.sg)"
+    },
+    "places": {
+      "mrt_exits": {
+        "dataset_id": "d_b39d3a0871985372d7e1637193335da5",
+        "name": "LTA MRT Station Exit (GEOJSON)",
+        "publisher": "Land Transport Authority (via data.gov.sg)"
+      },
+      "bus_stops": {
+        "dataset_id": "d_3f172c6feb3f4f92a2f47d93eed2908a",
+        "name": "LTA Bus Stop",
+        "publisher": "Land Transport Authority (via data.gov.sg)"
+      },
+      "schools": {
+        "dataset_id": "d_688b934f82c1059ed0a6993d2a829089",
+        "name": "General information of schools",
+        "publisher": "Ministry of Education (via data.gov.sg)"
+      },
+      "hawker_centres": {
+        "dataset_id": "d_4a086da0a5553be1d89383cd90d07ecd",
+        "name": "Hawker Centres (GEOJSON)",
+        "publisher": "National Environment Agency (via data.gov.sg)"
+      },
+      "parks": {
+        "dataset_id": "d_0542d48f0991541706b58059381a6eca",
+        "name": "Parks",
+        "publisher": "National Parks Board (via data.gov.sg)"
+      },
+      "park_connectors": {
+        "dataset_id": "d_a69ef89737379f231d2ae93fd1c5707f",
+        "name": "Park Connector Loop",
+        "publisher": "National Parks Board (via data.gov.sg)"
+      },
+      "malls": {
+        "name": "OpenStreetMap shopping malls",
+        "publisher": "OpenStreetMap contributors (ODbL)"
+      }
+    }
+  },
+  "location": {
+    "walk_speed_m_per_min": 80,
+    "detour_factor": 1.3,
+    "bus_stop_radius_m": 400,
+    "school_radius_m": 1000,
+    "nearby_radius_m": 1000,
+    "city_centre": [
+      1.284,
+      103.8514
+    ],
+    "connector_tolerance_m": 4.0,
+    "walk_rings_minutes": [
+      5,
+      10
+    ],
+    "blocks": 9755,
+    "places": {
+      "bus": 5205,
+      "train": 613,
+      "school": 337,
+      "mall": 241,
+      "park": 211,
+      "hawker": 122
     }
   },
   "tables": {
@@ -752,5 +897,6 @@
     "income": 26
   },
   "has_income_benchmark": true,
-  "has_town_map": true
+  "has_town_map": true,
+  "has_location": true
 }

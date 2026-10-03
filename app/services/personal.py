@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from app.services import location as location_service
 from app.services.bundle import Bundle
 from app.services.common import ALL, InputError, month_label, title_case, validate_choice
 from flatfair.affordability import LoanAssumptions, assess, max_price, rank_towns
@@ -125,9 +126,13 @@ def _storey_mid(storey_range: str) -> float:
     return (low + high) / 2
 
 
-def typical_flat(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
+def typical_flat(bundle: Bundle, town: str, flat_type: str, block: str | None = None, street_name: str | None = None) -> dict[str, Any]:
     """The median recent flat of this town and type; used to pre-fill the form
-    and as the reference point for 'what moves this estimate'."""
+    and as the reference point for 'what moves this estimate'.
+
+    If the buyer names a block, `prefill` holds what is known about that block:
+    its lease, and the usual size and model of this flat type there.
+    """
     town = validate_choice(town, bundle.towns, "town")
     flat_type = validate_choice(flat_type, bundle.flat_types, "flat type")
     if ALL in (town, flat_type):
@@ -142,6 +147,23 @@ def typical_flat(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
     storey_options = recent[["storey_range", "storey_mid"]].drop_duplicates()
     nearest = storey_options.iloc[(storey_options["storey_mid"] - storey_mid).abs().argsort()].iloc[0]
     models = recent["flat_model"].value_counts()
+    named = location_service.find_block(bundle, block, street_name, town)
+    prefill = None
+    if named is not None:
+        sales = txn[(txn["block"] == named["block"]) & (txn["street_name"] == named["street_name"])]
+        same_type = sales[sales["flat_type"] == flat_type]
+        latest = sales.sort_values("month").iloc[-1]
+        # Every flat in a block shares one lease, so the newest sale dates it.
+        months_since = (bundle.last_month.year - latest["month"].year) * 12 + bundle.last_month.month - latest["month"].month + 1
+        prefill = {
+            "block": named["block"],
+            "street_name": named["street_name"],
+            "label": location_service.address_label(named["block"], named["street_name"]),
+            "remaining_lease_years": float(max(1, round(latest["remaining_lease_years"] - months_since / 12))),
+            "floor_area_sqm": float(round(same_type["floor_area_sqm"].median())) if len(same_type) else None,
+            "flat_model": same_type["flat_model"].value_counts().index[0] if len(same_type) else None,
+            "sales_of_type": int(len(same_type)),
+        }
     return {
         "town": town,
         "flat_type": flat_type,
@@ -154,6 +176,7 @@ def typical_flat(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
         "floor_area_range": [float(recent["floor_area_sqm"].quantile(0.05)), float(recent["floor_area_sqm"].quantile(0.95))],
         "lease_range": [float(recent["remaining_lease_years"].min()), float(recent["remaining_lease_years"].max())],
         "sales": int(len(recent)),
+        "prefill": prefill,
     }
 
 
@@ -166,9 +189,12 @@ def fair_value(
     remaining_lease_years: float,
     flat_model: str | None = None,
     asking_price: float | None = None,
+    block: str | None = None,
+    street_name: str | None = None,
 ) -> dict[str, Any]:
     typical = typical_flat(bundle, town, flat_type)
     town, flat_type = typical["town"], typical["flat_type"]
+    named = location_service.find_block(bundle, block, street_name, town)
     if flat_type in ("1 ROOM", "MULTI-GENERATION"):
         raise InputError(f"Too few {title_case(flat_type)} flats are sold to estimate a price")
     if not 20 <= floor_area_sqm <= 300:
@@ -191,6 +217,12 @@ def fair_value(
         "storey_mid": storey_mid,
         "remaining_lease_years": float(remaining_lease_years),
     }
+    # Location: the named block's own, or the town's typical one if none was named.
+    location_inputs = location_service.model_location(bundle)
+    typical_place = location_service.typical_location(bundle, town, flat_type)
+    typical_place = {f: typical_place.get(f, np.nan) for f in location_inputs}
+    place = {f: float(named[f]) for f in location_inputs} if named is not None else typical_place
+    flat.update(place)
 
     # One batch: the flat, the typical flat, and the flat with one attribute
     # swapped to its typical value (to show what each difference is worth).
@@ -200,8 +232,11 @@ def fair_value(
         "remaining_lease_years": typical["remaining_lease_years"],
         "flat_model": typical["flat_model"],
     }
-    typical_row = {**flat, **swaps}
+    typical_row = {**flat, **swaps, **typical_place}
     variants = [flat, typical_row] + [{**flat, feature: value} for feature, value in swaps.items()]
+    if named is not None and location_inputs:
+        # The same flat in a typical spot in this town: what the location is worth.
+        variants.append({**flat, **typical_place})
     predictions = predict_price(bundle.model, pd.DataFrame(variants), index_now, months_now)
     estimate, typical_estimate = float(predictions[0]), float(predictions[1])
 
@@ -216,7 +251,7 @@ def fair_value(
         "remaining_lease_years": lambda v: f"{v:.0f} years left",
         "flat_model": lambda v: title_case(str(v)) if str(v).isupper() else str(v),
     }
-    for (feature, typical_value), swapped_price in zip(swaps.items(), predictions[2:]):
+    for (feature, typical_value), swapped_price in zip(swaps.items(), predictions[2 : 2 + len(swaps)]):
         yours = flat[feature]
         if yours == typical_value:
             continue
@@ -227,6 +262,16 @@ def fair_value(
                 "yours": descriptions[feature](yours),
                 "typical": descriptions[feature](typical_value),
                 "effect": round(estimate - float(swapped_price), -2),
+            }
+        )
+    if named is not None and location_inputs:
+        drivers.append(
+            {
+                "feature": "location",
+                "label": "Location",
+                "yours": "This block",
+                "typical": f"a typical spot in {title_case(town)}",
+                "effect": round(estimate - float(predictions[-1]), -2),
             }
         )
     drivers.sort(key=lambda d: abs(d["effect"]), reverse=True)
@@ -251,12 +296,20 @@ def fair_value(
     comps = find_comparables(
         bundle.transactions, town, flat_type, floor_area_sqm, storey_mid, remaining_lease_years,
         {"fair_value": {"comparables": bundle.meta["comparables"]}}, flat_model=flat_model,
+        origin=(float(named["latitude"]), float(named["longitude"])) if named is not None else None,
     )
+    comparables = comps.to_dict("records")
+    for row in comparables:
+        if "train_m" in row:
+            row["train_minutes"] = location_service.minutes(bundle, row.pop("train_m"))
     metrics = {m["model"]: m for m in fv_meta["metrics"]}
     selected = metrics[fv_meta["selected_model"]]
     baseline = metrics[fv_meta["baseline_model"]]
     return {
-        "flat": {**flat, "storey_range": storey_range.upper()},
+        "flat": {**{k: v for k, v in flat.items() if k not in location_inputs}, "storey_range": storey_range.upper()},
+        "location": location_service.nearby(bundle, named) if named is not None else None,
+        "location_in_model": bool(location_inputs),
+        "has_location": bundle.has_location,
         "estimate": round(estimate, -3),
         "range": [round(low, -3), round(high, -3)],
         "interval_level": fv_meta["interval_level"],
@@ -265,7 +318,7 @@ def fair_value(
         "typical": {**typical, "estimate": round(typical_estimate, -3)},
         "drivers": drivers,
         "importance": fv_meta["importance"],
-        "comparables": comps.to_dict("records"),
+        "comparables": comparables,
         "valuation_month": month_label(pd.Timestamp(fv_meta["valuation_month"] + "-01")),
         "accuracy": {
             "model": fv_meta["selected_model"],
@@ -277,6 +330,8 @@ def fair_value(
             "baseline_mape": baseline["mape"],
             "mae": selected["mae"],
             "baseline_mae": baseline["mae"],
+            # The same model without location, where the build measured it.
+            "flat_only_median_ape": metrics.get("gradient_boosting_flat_only", {}).get("median_ape"),
         },
     }
 

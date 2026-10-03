@@ -13,6 +13,7 @@ import os
 import shutil
 import tempfile
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,18 @@ import joblib
 import pandas as pd
 
 from flatfair.config import REPO_ROOT
+from flatfair.features.location import LOCATION_FEATURES, PlaceIndex, ring_metres
 
 log = logging.getLogger(__name__)
 
 REQUIRED_FILES = ["meta.json", "transactions.parquet", "market_monthly.parquet", "town_summary.parquet", "forecast.parquet", "fair_value_model.joblib"]
 RARE_FLAT_TYPES = {"1 ROOM", "MULTI-GENERATION"}
+# Location columns copied from each block onto its sales.
+# `train_m` is the nearest station of either kind, MRT or LRT: what a buyer
+# means by "near the train". The price model uses the MRT alone.
+BLOCK_COLUMNS = ["latitude", "longitude", "train_m", *LOCATION_FEATURES]
+TYPICAL_LOCATION_MONTHS = 24
+NEAR_TRAIN_MINUTES = 10
 FLAT_TYPE_ORDER = ["2 ROOM", "3 ROOM", "4 ROOM", "5 ROOM", "EXECUTIVE", "1 ROOM", "MULTI-GENERATION"]
 
 
@@ -67,6 +75,11 @@ class Bundle:
     income: pd.DataFrame | None
     model: Any
     town_map: dict[str, Any] | None = None
+    # Optional: where each block is and what is near it. Without them the app
+    # still runs; it only leaves out the street map and the location inputs.
+    blocks: pd.DataFrame | None = None
+    places: pd.DataFrame | None = None
+    connectors: pd.DataFrame | None = None
     last_month: pd.Timestamp = field(init=False)
     towns: list[str] = field(init=False)
     flat_types: list[str] = field(init=False)
@@ -76,12 +89,59 @@ class Bundle:
         self.towns = sorted(self.transactions["town"].dropna().unique().tolist())
         present = set(self.transactions["flat_type"].dropna().unique())
         self.flat_types = [t for t in FLAT_TYPE_ORDER if t in present] + sorted(present - set(FLAT_TYPE_ORDER))
+        if self.has_location:
+            # Each sale takes its block's position, so comparables can be mapped
+            # and a town's typical location worked out.
+            columns = [c for c in BLOCK_COLUMNS if c in self.blocks.columns]
+            lookup = self.blocks.drop_duplicates(["block", "street_name"])[["block", "street_name", *columns]]
+            self.transactions = self.transactions.merge(lookup, on=["block", "street_name"], how="left")
         # Analytics use complete months only; comparables may use the open month too.
         self.complete = self.transactions[self.transactions["month"] <= self.last_month]
 
     @property
     def common_flat_types(self) -> list[str]:
         return [t for t in self.flat_types if t not in RARE_FLAT_TYPES]
+
+    @property
+    def has_location(self) -> bool:
+        return self.blocks is not None and self.places is not None and bool(self.meta.get("location"))
+
+    @cached_property
+    def place_index(self) -> PlaceIndex:
+        """Built on first use: a cold start should not pay for it."""
+        return PlaceIndex(self.places, self.connectors, {"location": self.meta["location"]})
+
+    @cached_property
+    def block_flat_types(self) -> dict[tuple[str, str], list[str]]:
+        """Which flat types have sold in each block."""
+        pairs = self.transactions[["block", "street_name", "flat_type"]].drop_duplicates()
+        order = {t: i for i, t in enumerate(self.flat_types)}
+        grouped = pairs.groupby(["block", "street_name"])["flat_type"].agg(lambda s: sorted(s, key=lambda t: order.get(t, 99)))
+        return grouped.to_dict()
+
+    @cached_property
+    def typical_locations(self) -> dict[tuple[str, str], dict[str, float]]:
+        """The middle of each location measure over recent sales, per town and
+        flat type, plus one entry per town across all flat types ('ALL')."""
+        present = [f for f in ["train_m", *LOCATION_FEATURES] if f in self.transactions.columns]
+        if not present:
+            return {}
+        recent = self.complete[self.complete["month"] > self.last_month - pd.DateOffset(months=TYPICAL_LOCATION_MONTHS)]
+        near = ring_metres(NEAR_TRAIN_MINUTES, {"location": self.meta["location"]})
+        out: dict[tuple[str, str], dict[str, float]] = {}
+
+        def describe(group: pd.DataFrame) -> dict[str, float]:
+            row = {f: float(group[f].median()) for f in present}
+            if "train_m" in present:
+                known = group["train_m"].dropna()
+                row["near_train_pct"] = round(float((known <= near).mean() * 100), 0) if len(known) else None
+            return row
+
+        for (town, flat_type), group in recent.groupby(["town", "flat_type"]):
+            out[(town, flat_type)] = describe(group)
+        for town, group in recent.groupby("town"):
+            out[(town, "ALL")] = describe(group)
+        return out
 
     @property
     def income_benchmark(self) -> dict[str, Any] | None:
@@ -119,6 +179,10 @@ def load_bundle(serving_dir: Path | None = None) -> Bundle:
     # Optional: without it the app offers a plain town list instead of a map.
     map_path = serving_dir / "town_map.json"
     town_map = json.loads(map_path.read_text(encoding="utf-8")) if map_path.exists() else None
-    bundle = Bundle(meta=meta, income=income, model=model, town_map=town_map, **frames)
+    optional = {}
+    for name, filename in (("blocks", "blocks.parquet"), ("places", "places.parquet"), ("connectors", "park_connectors.parquet")):
+        path = serving_dir / filename
+        optional[name] = pd.read_parquet(path) if path.exists() else None
+    bundle = Bundle(meta=meta, income=income, model=model, town_map=town_map, **optional, **frames)
     log.info("Loaded serving bundle from %s (%s transactions)", serving_dir, f"{len(bundle.transactions):,}")
     return bundle

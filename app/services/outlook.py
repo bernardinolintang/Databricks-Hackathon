@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from app.services import location as location_service
 from app.services.bundle import Bundle
 from app.services.common import ALL, InputError, month_label, pct_change, title_case, validate_choice
 from flatfair.affordability import LoanAssumptions, assess
@@ -155,6 +156,7 @@ def compare(bundle: Bundle, towns: list[str], flat_type: str, monthly_income: fl
                 "momentum_pct": row["momentum_pct"],
                 "outlook": outlook,
                 "affordability": afford,
+                "location": location_service.town_location(bundle, town, flat_type),
             }
         )
         history = bundle.market_monthly[
@@ -185,6 +187,15 @@ def compare(bundle: Bundle, towns: list[str], flat_type: str, monthly_income: fl
                 f"On {who}, {title_case(best['town'])} is the easiest to repay "
                 f"({best['affordability']['repayment_ratio']:.0%} of monthly income)."
             )
+        located = [c for c in available if c.get("location")]
+        if len(located) == len(available):
+            nearest = min(located, key=lambda c: c["location"]["train_minutes"])
+            furthest = max(located, key=lambda c: c["location"]["train_minutes"])
+            if nearest["location"]["train_minutes"] < furthest["location"]["train_minutes"]:
+                verdicts.append(
+                    f"{title_case(nearest['town'])} is closest to the train: a typical flat there is a "
+                    f"{nearest['location']['train_minutes']} min walk from a station."
+                )
     return {
         "flat_type": flat_type,
         "cards": cards,

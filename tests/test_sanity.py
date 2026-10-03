@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from conftest import SERVING_DIR
-from flatfair.models.fair_value import INPUT_FEATURES, predict_price
+from flatfair.models.fair_value import attach_location, model_features, predict_price
 
 pytestmark = pytest.mark.skipif(not (SERVING_DIR / "meta.json").exists(), reason="run the pipeline first")
 
@@ -49,7 +49,11 @@ def test_fair_value_predictions_plausible(transactions, meta):
     model = joblib.load(SERVING_DIR / "fair_value_model.joblib")
     sample = transactions[transactions["month"] >= transactions["month"].max() - pd.DateOffset(months=2)]
     sample = sample[~sample["flat_type"].isin(["1 ROOM", "MULTI-GENERATION"])].sample(500, random_state=1)
-    predicted = predict_price(model, sample[INPUT_FEATURES], meta["fair_value"]["market_index_psm_now"], meta["fair_value"]["months_since_start_now"])
+    # The served model may use each block's location; give it the same inputs the app does.
+    blocks = SERVING_DIR / "blocks.parquet"
+    sample, _ = attach_location(sample, pd.read_parquet(blocks) if blocks.exists() else None)
+    inputs = [f for f in model_features(model) if f != "months_since_start"]
+    predicted = predict_price(model, sample[inputs], meta["fair_value"]["market_index_psm_now"], meta["fair_value"]["months_since_start_now"])
     assert np.all((predicted > 100_000) & (predicted < 2_500_000))
     # Recent sales should mostly sit near today's estimate.
     ape = np.abs(predicted - sample["resale_price"].to_numpy()) / sample["resale_price"].to_numpy()
