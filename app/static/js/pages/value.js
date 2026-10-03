@@ -18,6 +18,19 @@ export async function render(root, { meta }) {
   let typical = null;
   let importanceRows = [];
 
+  // Deep links: #/value?town=TAMPINES&type=4%20ROOM&area=95&storey=10%20TO%2012&lease=72&ask=690000
+  const params = new URLSearchParams(location.hash.split("?")[1] || "");
+  const fromLink = params.has("area") || params.has("ask");
+  if (params.get("town") && meta.towns.includes(params.get("town").toUpperCase())) flat.town = params.get("town").toUpperCase();
+  if (params.get("type") && valueTypes.includes(params.get("type").toUpperCase())) flat.flat_type = params.get("type").toUpperCase();
+  const linked = {
+    floor_area: Number(params.get("area")) || null,
+    storey_range: meta.storey_ranges.includes((params.get("storey") || "").toUpperCase()) ? params.get("storey").toUpperCase() : null,
+    remaining_lease: Number(params.get("lease")) || null,
+    flat_model: params.get("model") ? params.get("model").toUpperCase() : null,
+  };
+  if (params.get("ask")) flat.asking_price = Number(params.get("ask")) || null;
+
   root.append(
     h(
       "section",
@@ -299,8 +312,13 @@ export async function render(root, { meta }) {
     );
   }
 
-  await loadTypical(false);
-  await estimate();
+  if (await loadTypical(false)) {
+    if (fromLink) {
+      for (const [key, value] of Object.entries(linked)) if (value) flat[key] = value;
+      drawForm();
+    }
+    await estimate();
+  }
 }
 
 function previousMonth(ym) {

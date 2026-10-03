@@ -24,3 +24,10 @@ Thumbs.db
 
 .vercel
 .env*
+
+# Deck build scratch
+submission/qa/
+submission/tpl/
+submission/value-shot.png
+submission/*preview*.png
+submission/vc-small.png

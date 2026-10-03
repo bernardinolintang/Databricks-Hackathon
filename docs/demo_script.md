@@ -18,6 +18,7 @@ Before going live: open the app in a fresh browser window (no saved state), then
 
 * **Live app fails:** the same app is at the Vercel URL. Screenshots of every page are in `docs/screenshots/`.
 * **Databricks quota hit:** show the MLflow screenshots and notebook outputs. The app keeps serving from the published bundle.
+* **Typing the flat details live:** use the deep link `#/value?town=TAMPINES&type=4%20ROOM&area=95&storey=10%20TO%2012&lease=72&ask=690000`.
 * **Most failure-prone step:** a live pipeline rerun (network + compute). Don't do it live; show the ingestion log table and the Data Health panel instead.
 
 ## Likely questions
@@ -43,4 +44,4 @@ Before going live: open the app in a fresh browser window (no saved state), then
 | Team can explain problem, user, architecture, Databricks contribution and handoffs | This script; presenters A/B/C above |
 | Third-party datasets, libraries, models and templates credited | README §17 and app footer |
 | Screenshot or recording for the most failure-prone step | `docs/screenshots/`; record a 60-second screen capture of scenes 3–4 before Demo Day |
-| Final link, repository and materials accessible to judges | Public GitHub repo + Vercel URL; deck PDF in `docs/` |
+| Final link, repository and materials accessible to judges | Vercel URL is public. GitHub repo is **private**: make it public or add judges. Deck: `submission/FlatFair_Round1_Deck.pdf` |
