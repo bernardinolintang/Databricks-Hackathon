@@ -29,7 +29,7 @@ def test_demo_journey(client):
 
     forecast = client.get("/api/forecast", params={"town": "TAMPINES", "flat_type": "4 ROOM"}).json()
     assert forecast["available"] and len(forecast["forecast"]) == 6
-    assert "projected to" in forecast["reading"]["headline"]
+    assert "next six months" in forecast["reading"]["headline"]
 
     afford = client.get("/api/affordability", params={"income": 9000, "cash": 200000, "flat_type": "4 ROOM", "town": "TAMPINES"}).json()
     assert 0 < afford["result"]["repayment_ratio"] < 1 and afford["ranking"]

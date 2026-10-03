@@ -1,7 +1,8 @@
 import { api } from "../api.js";
 import { C, chartCard, mount, rankedBarsOption, tooltipHtml, tableView } from "../charts.js";
-import { callout, clear, fill, errorBanner, h, moneyInput, nextStep, numberInput, select, skeleton, statusPill, table } from "../dom.js";
-import { flatTypeLabel, int, money, monthLabel, pct, storeyLabel, titleCase } from "../format.js";
+import { callout, errorBanner, fill, h, moneyInput, nextStep, numberInput, select, skeleton, statusPill, table } from "../dom.js";
+import { flatTypeLabel, int, money, moneyRange, monthLabel, pct, storeyLabel, titleCase } from "../format.js";
+import { chipGroup, townField } from "../picker.js";
 import { state, update } from "../state.js";
 
 export async function render(root, { meta }) {
@@ -36,24 +37,24 @@ export async function render(root, { meta }) {
       "section",
       { class: "wrap page-head" },
       h("p", { class: "eyebrow" }, "Step 4 · Fair value"),
-      h("h1", { class: "page-title" }, "Is the asking price in line?"),
-      h("p", { class: "lede" }, "Describe the flat. FlatFair estimates what it would sell for today, shows the range similar sales fall in, and lists the closest recent transactions."),
+      h("h1", { class: "page-title" }, "Is the asking price fair?"),
+      h("p", { class: "lede" }, "Describe the flat. We’ll estimate what it would sell for today and show the closest recent sales."),
     ),
   );
 
   const form = h("div", { class: "card stack" }, skeleton(420));
   const result = h("div", { class: "stack fade-on-load" }, skeleton(300), skeleton(260));
-  root.append(h("section", { class: "wrap section" }, h("div", { class: "grid grid--side" }, h("div", { style: { position: "sticky", top: "calc(var(--nav-h) + 16px)" } }, form), result)));
+  root.append(h("section", { class: "wrap section" }, h("div", { class: "grid grid--side" }, h("div", { class: "side-sticky" }, form), result)));
 
   const compsSlot = h("div", {}, skeleton(320));
   const importance = chartCard({
-    title: "What drives estimates overall",
-    sub: "How much worse the model gets when each input is scrambled, as a share of the total.",
+    title: "What matters most to price",
+    sub: "How much each detail affects the estimate, across all flats.",
     height: 260,
     tableView: () =>
       tableView(
         [
-          { key: "label", label: "Input" },
+          { key: "label", label: "Detail" },
           { key: "share_pct", label: "Share", align: "right", format: (v) => `${v.toFixed(1)}%` },
         ],
         importanceRows,
@@ -66,11 +67,9 @@ export async function render(root, { meta }) {
     h(
       "section",
       { class: "wrap section" },
-      callout(
-        "Fair value estimates are statistical estimates from historical open data. They cannot see renovation quality, the exact unit, its facing or view, noise, nearby amenities changing, or how a negotiation goes. Treat the range, not the single number, as the answer.",
-      ),
+      callout("This is an estimate from past sales. It can’t see renovation, the exact unit, which way it faces, the view or the noise. Go by the range more than the single number."),
     ),
-    nextStep({ title: "Weigh up the alternatives", body: "Put this town next to two others on price, growth, outlook and what you can afford.", href: "#/compare", cta: "Compare towns" }),
+    nextStep({ title: "Look at other towns", body: "Compare this town with two others on price, growth and what you’d pay each month.", href: "#/compare", cta: "Compare towns" }),
   );
 
   async function loadTypical(resetFields) {
@@ -94,21 +93,20 @@ export async function render(root, { meta }) {
 
   function drawForm() {
     const storeys = meta.storey_ranges.map((s) => [s, `Storey ${storeyLabel(s)}`]);
-    fill(form, 
+    fill(
+      form,
       h("h2", { class: "h3" }, "The flat"),
-      select({
+      townField({
         id: "v-town",
-        label: "Town",
-        options: meta.towns.map((t) => [t, titleCase(t)]),
         value: flat.town,
+        getFlatType: () => flat.flat_type,
         onChange: async (v) => {
           flat.town = v;
           update({ town: v });
           if (await loadTypical(true)) estimate();
         },
       }),
-      select({
-        id: "v-type",
+      chipGroup({
         label: "Flat type",
         options: valueTypes.map((t) => [t, flatTypeLabel(t)]),
         value: flat.flat_type,
@@ -126,19 +124,19 @@ export async function render(root, { meta }) {
         min: 20,
         max: 300,
         suffix: "sqm",
-        hint: typical ? `Most ${flatTypeLabel(flat.flat_type, true)} here: ${int(typical.floor_area_range[0])}–${int(typical.floor_area_range[1])} sqm` : null,
+        hint: typical ? `Most here are ${int(typical.floor_area_range[0])} to ${int(typical.floor_area_range[1])} sqm` : null,
         onChange: (v) => set({ floor_area: v }),
       }),
       select({ id: "v-storey", label: "Storey", options: storeys, value: flat.storey_range, onChange: (v) => set({ storey_range: v }) }),
       numberInput({
         id: "v-lease",
-        label: "Remaining lease",
+        label: "Lease left",
         value: flat.remaining_lease,
         step: 1,
         min: 1,
         max: 99,
         suffix: "years",
-        hint: typical ? `Recent sales here: ${Math.round(typical.lease_range[0])}–${Math.round(typical.lease_range[1])} years left` : null,
+        hint: typical ? `Recent sales here had ${Math.round(typical.lease_range[0])} to ${Math.round(typical.lease_range[1])} years left` : null,
         onChange: (v) => set({ remaining_lease: v }),
       }),
       select({
@@ -148,8 +146,8 @@ export async function render(root, { meta }) {
         value: flat.flat_model,
         onChange: (v) => set({ flat_model: v }),
       }),
-      moneyInput({ id: "v-ask", label: "Asking price (optional)", value: flat.asking_price, placeholder: "e.g. 690000", hint: "Compared against the expected range", onChange: (v) => set({ asking_price: v }) }),
-      typical ? h("p", { class: "hint" }, `Pre-filled with a typical ${flatTypeLabel(flat.flat_type).toLowerCase()} flat in ${titleCase(flat.town)} (${int(typical.sales)} sales in the last two years). Change anything.`) : null,
+      moneyInput({ id: "v-ask", label: "Asking price (optional)", value: flat.asking_price, placeholder: "e.g. 690000", hint: "We’ll show where it sits in the range", onChange: (v) => set({ asking_price: v }) }),
+      typical ? h("p", { class: "hint" }, `Filled in with a typical ${flatTypeLabel(flat.flat_type).toLowerCase()} flat in ${titleCase(flat.town)}. Change anything to match yours.`) : null,
     );
   }
 
@@ -198,11 +196,11 @@ export async function render(root, { meta }) {
     const summary = h(
       "article",
       { class: "card card--pad-lg" },
-      h("div", { class: "value-hero" }, h("span", { class: "value-hero__label" }, `Estimated market value, ${d.valuation_month}`), h("span", { class: "value-hero__num" }, money(d.estimate))),
-      h("p", { class: "value-hero__range" }, `Expected range ${money(low)} – ${money(high)}`),
+      h("div", { class: "value-hero" }, h("span", { class: "value-hero__label" }, `Estimated value, ${d.valuation_month}`), h("span", { class: "value-hero__num" }, money(d.estimate))),
+      h("p", { class: "value-hero__range" }, `Usual range: ${moneyRange(low, high)}`),
       h(
         "div",
-        { class: "range-bar", role: "img", "aria-label": `Expected range ${money(low)} to ${money(high)}${cmp ? `, asking price ${money(cmp.asking_price)}` : ""}` },
+        { class: "range-bar", role: "img", "aria-label": `Usual range ${moneyRange(low, high)}${cmp ? `, asking price ${money(cmp.asking_price)}` : ""}` },
         h("div", { class: "range-bar__track" }),
         h("div", { class: "range-bar__band", style: { left: pos(low), width: `calc(${pos(high)} - ${pos(low)})` } }),
         h("div", { class: "range-bar__tick", style: { left: pos(d.estimate) } }),
@@ -216,62 +214,60 @@ export async function render(root, { meta }) {
             "div",
             { class: "flex flex--wrap mt-16" },
             statusPill(cmp.position, cmp.label),
-            h("span", { class: "muted" }, `${pct(cmp.difference_pct)} · ${money(Math.abs(cmp.difference))} ${cmp.difference >= 0 ? "above" : "below"} the estimate`),
+            h("span", { class: "muted" }, `${money(Math.abs(cmp.difference))} ${cmp.difference >= 0 ? "above" : "below"} the estimate (${pct(cmp.difference_pct)})`),
           )
-        : h("p", { class: "sub mt-16" }, "Add an asking price to see where it sits against the range."),
+        : h("p", { class: "sub mt-16" }, "Add an asking price to see where it sits."),
       h(
         "p",
         { class: "small mt-16" },
-        `${Math.round(d.interval_level * 100)}% of recent ${d.interval_basis === "ALL" ? "" : `${flatTypeLabel(d.interval_basis).toLowerCase()} `}sales in testing sold within this range of their estimate. `,
+        `In testing, ${Math.round(d.interval_level * 100)}% of ${d.interval_basis === "ALL" ? "" : `${flatTypeLabel(d.interval_basis).toLowerCase()} `}flats sold within this range. `,
         `${titleCase(f.town)}, ${flatTypeLabel(f.flat_type).toLowerCase()}, ${int(f.floor_area_sqm)} sqm, storey ${storeyLabel(f.storey_range)}, ${Math.round(f.remaining_lease_years)} years left, ${titleCase(f.flat_model)}.`,
       ),
     );
 
-    const typicalLine = `${titleCase(d.typical.town)} ${flatTypeLabel(d.typical.flat_type).toLowerCase()} typical: ${int(d.typical.floor_area_sqm)} sqm, storey ${storeyLabel(d.typical.storey_range)}, ${Math.round(d.typical.remaining_lease_years)} years left, worth about ${money(d.typical.estimate)}.`;
+    const typicalLine = `A typical ${flatTypeLabel(d.typical.flat_type).toLowerCase()} flat in ${titleCase(d.typical.town)} is ${int(d.typical.floor_area_sqm)} sqm, storey ${storeyLabel(d.typical.storey_range)}, with ${Math.round(d.typical.remaining_lease_years)} years left. It’s worth about ${money(d.typical.estimate)}.`;
     const maxEffect = Math.max(1, ...d.drivers.map((x) => Math.abs(x.effect)));
     const drivers = h(
       "article",
       { class: "card" },
-      h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, "What moves this estimate"), h("p", { class: "sub" }, typicalLine))),
+      h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, "What changes the price"), h("p", { class: "sub" }, typicalLine))),
       d.drivers.length
         ? d.drivers.map((x) =>
             h(
               "div",
               { class: "driver" },
-              h("div", {}, h("div", { style: { fontWeight: 600 } }, x.label), h("div", { class: "small" }, `${x.yours} vs ${x.typical}`)),
+              h("div", {}, h("div", { style: { fontWeight: 600 } }, x.label), h("div", { class: "small" }, `${x.yours.replace("storey ", "Storey ")} vs ${x.typical}`)),
               h("div", { class: "driver__bar", "aria-hidden": "true" }, h("i", { class: x.effect >= 0 ? "pos" : "neg", style: { width: `${(Math.abs(x.effect) / maxEffect) * 50}%` } })),
-              h("div", { class: "driver__val" }, `${x.effect >= 0 ? "+" : "−"}${money(Math.abs(x.effect))}`),
+              h("div", { class: "driver__val" }, `${x.effect >= 0 ? "+" : "-"}${money(Math.abs(x.effect))}`),
             ),
           )
-        : h("p", { class: "sub" }, "This flat matches the typical one on every input. Change its size, storey or remaining lease to see what each difference is worth."),
-      h("div", { class: "card__foot" }, "Each line swaps one input back to the typical value and measures the change. Effects interact, so they do not add up exactly to the difference."),
+        : h("p", { class: "sub" }, "Your flat matches the typical one. Change the size, storey or lease to see what each is worth."),
+      h("div", { class: "card__foot" }, "Each line shows the difference that one detail makes compared with the typical flat. They overlap a little, so they won’t add up exactly."),
     );
     fill(result, summary, drivers);
 
-    fill(compsSlot, 
+    fill(
+      compsSlot,
       h(
         "article",
         { class: "card" },
-        h(
-          "div",
-          { class: "card__head" },
-          h("div", {}, h("h3", { class: "h3" }, "Most comparable recent sales"), h("p", { class: "sub" }, `Same town and flat type, last 24 months, ranked by closeness in size, storey, remaining lease and date.`)),
-        ),
+        h("div", { class: "card__head" }, h("div", {}, h("h3", { class: "h3" }, "Closest recent sales"), h("p", { class: "sub" }, "Same town and flat type, sold in the last two years. Closest match first."))),
         d.comparables.length
           ? table(
               [
+                { key: "block", label: "Address", primary: true, format: (v, row) => `Blk ${v} ${titleCase(row.street_name)}` },
                 { key: "month", label: "Sold", format: monthLabel },
-                { key: "block", label: "Address", format: (v, row) => `Blk ${v} ${titleCase(row.street_name)}` },
-                { key: "storey_range", label: "Storey", format: storeyLabel },
-                { key: "floor_area_sqm", label: "Area", align: "right", format: (v) => `${int(v)} sqm` },
-                { key: "remaining_lease_years", label: "Lease left", align: "right", format: (v) => `${Math.round(v)} yrs` },
                 { key: "resale_price", label: "Price", align: "right", format: money },
-                { key: "price_per_sqm", label: "$/sqm", align: "right", format: money },
+                { key: "storey_range", label: "Storey", format: storeyLabel },
+                { key: "floor_area_sqm", label: "Size", align: "right", format: (v) => `${int(v)} sqm` },
+                { key: "remaining_lease_years", label: "Lease left", align: "right", format: (v) => `${Math.round(v)} years` },
+                { key: "price_per_sqm", label: "Per sqm", align: "right", format: money },
                 { key: "similarity", label: "Match", align: "right", format: (v) => h("span", { class: "badge" }, `${int(v)}%`) },
               ],
               d.comparables,
+              { stack: true },
             )
-          : h("div", { class: "empty" }, h("h3", {}, "No close matches"), "There were no sales of this flat type in this town over the last 24 months."),
+          : h("div", { class: "empty" }, h("h3", {}, "No close matches"), "No flats of this type were sold in this town in the last two years."),
       ),
     );
 
@@ -284,29 +280,26 @@ export async function render(root, { meta }) {
         values: imp.map((x) => x.share_pct),
         format: (v) => `${v.toFixed(0)}%`,
         labelAll: true,
-        tooltip: (i) => tooltipHtml(imp[i].label, [{ color: C.s1, value: `${imp[i].share_pct.toFixed(1)}%`, label: "share of importance" }]),
+        tooltip: (i) => tooltipHtml(imp[i].label, [{ color: C.s1, value: `${imp[i].share_pct.toFixed(1)}%`, label: "of the effect on price" }]),
       }),
     );
     importance.refreshTable();
 
     const acc = d.accuracy;
-    fill(accuracySlot, 
+    fill(
+      accuracySlot,
       h(
         "article",
         { class: "card" },
         h("h3", { class: "h3" }, "How accurate is it?"),
-        h(
-          "p",
-          { class: "sub" },
-          `Trained on sales up to ${monthLabel(previousMonth(acc.holdout_period[0]))}, then tested on ${int(acc.holdout_rows)} sales from ${monthLabel(acc.holdout_period[0])} to ${monthLabel(acc.holdout_period[1])} that it never saw.`,
-        ),
+        h("p", { class: "sub" }, `We tested it on ${int(acc.holdout_rows)} flats sold from ${monthLabel(acc.holdout_period[0])} to ${monthLabel(acc.holdout_period[1])}. The model had not seen any of them.`),
         h(
           "ul",
           { class: "breakdown mt-16" },
-          h("li", {}, h("span", {}, "Typical error (median)"), h("b", {}, `${acc.median_ape.toFixed(1)}%`)),
-          h("li", {}, h("span", {}, "Sales estimated within 10%"), h("b", {}, `${acc.within_10pct.toFixed(0)}%`)),
-          h("li", {}, h("span", {}, "Average error, gradient boosting"), h("b", {}, `${acc.mape.toFixed(1)}%`)),
-          h("li", {}, h("span", {}, "Average error, “$ per sqm × size” rule of thumb"), h("b", {}, `${acc.baseline_mape.toFixed(1)}%`)),
+          h("li", {}, h("span", {}, "Typical miss"), h("b", {}, `${acc.median_ape.toFixed(1)}%`)),
+          h("li", {}, h("span", {}, "Estimates within 10% of the real price"), h("b", {}, `${acc.within_10pct.toFixed(0)}%`)),
+          h("li", {}, h("span", {}, "Average miss, this model"), h("b", {}, `${acc.mape.toFixed(1)}%`)),
+          h("li", {}, h("span", {}, "Average miss, price per sqm times size"), h("b", {}, `${acc.baseline_mape.toFixed(1)}%`)),
         ),
       ),
     );
@@ -320,9 +313,3 @@ export async function render(root, { meta }) {
     await estimate();
   }
 }
-
-function previousMonth(ym) {
-  const [y, m] = ym.split("-").map(Number);
-  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
-}
-

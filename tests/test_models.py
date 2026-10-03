@@ -46,14 +46,14 @@ def test_backtest_origins_leave_room_for_horizon(cfg):
     [(605_000, "stable"), (630_000, "up"), (560_000, "down")],
 )
 def test_interpretation_direction(final, expected):
-    reading = interpret_forecast("Tampines", 600_000, final, final * 0.95, final * 1.05, "Mar 2027", 0.8)
+    reading = interpret_forecast("4-room prices in Tampines", 600_000, final, final * 0.95, final * 1.05, "Mar 2027", 0.8)
     assert reading["direction"] == expected
     assert "Tampines" in reading["headline"]
     assert "will" not in reading["headline"].lower()
 
 
 def test_interpretation_flags_uncertain_direction():
-    reading = interpret_forecast("Bedok", 600_000, 630_000, 580_000, 680_000, "Mar 2027", 0.8)
+    reading = interpret_forecast("4-room prices in Bedok", 600_000, 630_000, 580_000, 680_000, "Mar 2027", 0.8)
     assert reading["direction_uncertain"]
     assert "uncertain" in reading["caveat"]
 

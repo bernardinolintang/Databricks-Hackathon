@@ -50,6 +50,7 @@
 | Serving bundle instead of per-request SQL | Free Edition has one 2X-Small warehouse. The app loads ~8 MB once and answers every request from memory in under 150 ms. |
 | Medians computed on request in the app | A median of medians is not a median. Arbitrary filters (town × type × storey × model × years) are recomputed from transactions. |
 | One FastAPI app for Databricks Apps and Vercel | The same artifact runs behind workspace login for judges and publicly for a shareable link. |
+| Town map drawn from open boundary data | URA planning areas from data.gov.sg are simplified in the pipeline into SVG paths (34 KB). No map tiles, API key or third-party service, and it works offline. |
 
 ## Storage abstraction
 
@@ -58,7 +59,7 @@
 ## Free Edition fit
 
 * Serverless notebooks only; no clusters to manage.
-* One schema, one volume, about 20 small tables.
+* One schema, one volume, about 22 small tables.
 * No model serving endpoint needed: the model runs inside the app process.
 * One of three allowed apps.
 * The heaviest step, the forecast backtest, trains six small boosted models in about 20 seconds on a laptop.

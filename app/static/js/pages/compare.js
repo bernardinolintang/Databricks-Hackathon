@@ -1,7 +1,8 @@
 import { api } from "../api.js";
 import { C, SERIES, chartCard, lineOption, mount, tooltipHtml, tableView } from "../charts.js";
-import { callout, clear, fill, errorBanner, h, iconSvg, select, skeleton, statusPill } from "../dom.js";
-import { flatTypeLabel, int, money, monthLabel, pct, ratio, titleCase } from "../format.js";
+import { callout, errorBanner, fill, h, iconSvg, skeleton, statusPill } from "../dom.js";
+import { flatTypeLabel, int, money, moneyRange, monthLabel, pct, ratio, titleCase } from "../format.js";
+import { chipGroup, openTownPicker } from "../picker.js";
 import { state, update } from "../state.js";
 
 const MAX = 3;
@@ -20,8 +21,8 @@ export async function render(root, { meta }) {
       "section",
       { class: "wrap page-head" },
       h("p", { class: "eyebrow" }, "Step 5 · Compare"),
-      h("h1", { class: "page-title" }, "How do the alternatives stack up?"),
-      h("p", { class: "lede" }, "Put up to three towns side by side on price, growth, outlook and what the repayment would take from your income."),
+      h("h1", { class: "page-title" }, "How do other towns compare?"),
+      h("p", { class: "lede" }, "Put up to three towns side by side. See the price, how it has changed, and what you’d pay each month."),
     ),
   );
 
@@ -32,8 +33,8 @@ export async function render(root, { meta }) {
   const cards = h("div", { class: "grid grid--3" }, [0, 1, 2].map(() => skeleton(380)));
   let last = null;
   const chart = chartCard({
-    title: "Price trend, last five years",
-    sub: "Median over rolling three-month windows.",
+    title: "Prices over the last five years",
+    sub: "Median price, averaged over three months.",
     height: 360,
     tableView: () => {
       if (!last) return h("div");
@@ -52,18 +53,44 @@ export async function render(root, { meta }) {
   );
   root.append(
     body,
-    h("section", { class: "wrap section" }, callout("Growth figures compare medians of different sets of sales, so a change partly reflects which flats sold. Outlooks are six-month forecasts with an 80% range; repayments use the default loan assumptions from the Affordability step.")),
+    h("section", { class: "wrap section" }, callout("Changes compare the median of flats sold in each period, so they partly reflect which flats were sold. Repayments use the loan settings from the Affordability step.")),
     h(
       "section",
       { class: "wrap section" },
       h(
         "div",
         { class: "next-step" },
-        h("div", {}, h("h3", {}, "That’s the full picture"), h("p", {}, "Market, outlook, affordability, fair value and alternatives. Start again with another flat, or change any step.")),
-        h("div", { class: "flex flex--wrap" }, h("a", { class: "btn btn--secondary", href: "#/afford" }, "Revisit affordability"), h("a", { class: "btn btn--primary", href: "#/value" }, "Value another flat")),
+        h("div", {}, h("h3", {}, "That’s all five steps"), h("p", {}, "Go back to any step, or try another flat.")),
+        h("div", { class: "flex flex--wrap" }, h("a", { class: "btn btn--secondary", href: "#/afford" }, "Back to affordability"), h("a", { class: "btn btn--primary", href: "#/value" }, "Check another flat")),
       ),
     ),
   );
+
+  const colourOf = (town) => SERIES[slots.indexOf(town)] || C.s1;
+
+  async function pickTowns() {
+    const chosen = await openTownPicker({
+      title: "Choose towns to compare",
+      selected: slots.filter(Boolean),
+      multi: true,
+      max: MAX,
+      flatType,
+      // Preview colours in the picker: kept towns hold their slot, new ones take the next free one.
+      colorFor: (town, current) => {
+        const kept = slots.indexOf(town);
+        if (kept !== -1) return SERIES[kept];
+        const free = [0, 1, 2].filter((i) => !slots[i] || !current.includes(slots[i]));
+        const added = current.filter((t) => !slots.includes(t));
+        return SERIES[free[added.indexOf(town)]] || C.s1;
+      },
+    });
+    if (!chosen || !chosen.length) return;
+    // Keep towns that stayed in their slot; fill freed slots with the new ones.
+    const next = slots.map((t) => (t && chosen.includes(t) ? t : null));
+    for (const town of chosen) if (!next.includes(town)) next[next.indexOf(null)] = town;
+    slots = next;
+    save();
+  }
 
   function drawControls() {
     const chosen = slots.filter(Boolean);
@@ -94,28 +121,16 @@ export async function render(root, { meta }) {
             )
           : null,
       ),
+      h("button", { class: "btn btn--secondary btn--small", type: "button", onclick: pickTowns }, chosen.length < MAX ? "Add a town" : "Change towns"),
     );
-    const addable = meta.towns.filter((t) => !slots.includes(t));
-    fill(controls, 
+    fill(
+      controls,
       h("div", { class: "field field--grow" }, h("span", {}, `Towns (${chosen.length} of ${MAX})`), chips),
-      chosen.length < MAX
-        ? select({
-            id: "c-add",
-            label: "Add a town",
-            options: [["", "Choose…"], ...addable.map((t) => [t, titleCase(t)])],
-            value: "",
-            onChange: (v) => {
-              if (!v) return;
-              slots[slots.indexOf(null)] = v;
-              save();
-            },
-          })
-        : null,
-      select({
-        id: "c-type",
+      chipGroup({
         label: "Flat type",
         options: meta.common_flat_types.map((t) => [t, flatTypeLabel(t)]),
         value: flatType,
+        grow: true,
         onChange: (v) => {
           flatType = v;
           update({ flatType: v });
@@ -147,27 +162,25 @@ export async function render(root, { meta }) {
     }
   }
 
-  function colourOf(town) {
-    return SERIES[slots.indexOf(town)] || C.s1;
-  }
-
   function draw(d) {
     const incomeNote = d.income_source === "yours" ? `your income of ${money(d.monthly_income)} a month` : `the median household income of ${money(d.monthly_income)} a month`;
-    fill(verdictSlot, 
+    fill(
+      verdictSlot,
       h(
         "article",
         { class: "card card--pad-lg" },
-        h("p", { class: "eyebrow" }, "What stands out"),
+        h("p", { class: "eyebrow" }, "At a glance"),
         d.verdicts.length ? h("ul", { class: "verdicts" }, d.verdicts.map((v) => h("li", {}, v))) : h("p", { class: "sub" }, "Add another town to compare."),
-        h("p", { class: "small mt-16" }, `${flatTypeLabel(d.flat_type, true)}, ${d.window_label}. Repayment shares use ${incomeNote}.`),
+        h("p", { class: "small mt-16" }, `${flatTypeLabel(d.flat_type, true)}, ${d.window_label}. Repayments are based on ${incomeNote}.`),
       ),
     );
 
-    fill(cards, 
-      ...d.cards.map((c) => {
+    fill(
+      cards,
+      d.cards.map((c) => {
         const color = colourOf(c.town);
         if (!c.available) {
-          return h("article", { class: "card compare-card", style: { "--accent": color } }, h("h3", { class: "h2" }, titleCase(c.town)), h("p", { class: "sub" }, `No recent ${flatTypeLabel(d.flat_type, true)} sales.`));
+          return h("article", { class: "card compare-card", style: { "--accent": color } }, h("h3", { class: "h2" }, titleCase(c.town)), h("p", { class: "sub" }, `No ${flatTypeLabel(d.flat_type, true)} sold here recently.`));
         }
         const o = c.outlook;
         const af = c.affordability;
@@ -176,22 +189,22 @@ export async function render(root, { meta }) {
           { class: "card compare-card", style: { "--accent": color } },
           h("h3", { class: "h2" }, titleCase(c.town)),
           h("div", { class: "tile__value" }, money(c.median_price)),
-          h("p", { class: "small", style: { margin: "2px 0 0" } }, `median ${flatTypeLabel(d.flat_type).toLowerCase()}, ${int(c.transactions_12m)} sales`),
+          h("p", { class: "small", style: { margin: "2px 0 0" } }, `Median price, ${int(c.transactions_12m)} sold`),
           h(
             "dl",
             { class: "kv" },
             h("dt", {}, "Price per sqm"),
             h("dd", {}, money(c.median_psm)),
-            h("dt", {}, "Year on year"),
+            h("dt", {}, "From a year ago"),
             h("dd", {}, pct(c.yoy_pct)),
-            h("dt", {}, "Five years"),
+            h("dt", {}, "Over five years"),
             h("dd", {}, pct(c.change_5y_pct)),
-            h("dt", {}, `Outlook, ${o ? o.month : "six months"}`),
+            h("dt", {}, o ? `Forecast for ${o.month}` : "Forecast"),
             h("dd", {}, o ? money(o.forecast_price) : "Too few sales"),
-            o ? h("dt", {}, "80% range") : null,
-            o ? h("dd", { style: { fontWeight: 500 } }, `${money(o.lower_price)} – ${money(o.upper_price)}`) : null,
+            o ? h("dt", {}, "Likely range") : null,
+            o ? h("dd", { style: { fontWeight: 500 } }, moneyRange(o.lower_price, o.upper_price, true)) : null,
             af ? h("dt", {}, "Monthly repayment") : null,
-            af ? h("dd", {}, `${money(af.monthly_repayment)} · ${ratio(af.repayment_ratio)}`) : null,
+            af ? h("dd", {}, `${money(af.monthly_repayment)} (${ratio(af.repayment_ratio)})`) : null,
           ),
           af ? h("div", { class: "mt-16" }, statusPill(af.status, af.status_label)) : null,
         );

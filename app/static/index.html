@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>FlatFair · HDB resale intelligence</title>
-  <meta name="description" content="Explore HDB resale prices, see a six-month outlook, check affordability and estimate a flat's fair value using Singapore's official open data.">
+  <meta name="description" content="See HDB resale prices in every town, check what you can afford and find out if an asking price is fair. Built on official HDB data.">
   <meta name="theme-color" content="#f5f5f7">
   <link rel="icon" type="image/svg+xml" href="/static/img/mark.svg">
   <link rel="preload" href="/static/fonts/InterVariable.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="/static/css/app.css?v=1">
+  <link rel="stylesheet" href="/static/css/app.css?v=2">
   <script src="/static/vendor/echarts.min.js" defer></script>
-  <script type="module" src="/static/js/main.js?v=1"></script>
+  <script type="module" src="/static/js/main.js?v=2"></script>
 </head>
 <body>
   <a class="skip-link" href="#view">Skip to content</a>
@@ -36,7 +36,16 @@
     </div>
   </header>
 
-  <main id="view" class="view" tabindex="-1" aria-live="polite"></main>
+  <main id="view" class="view" tabindex="-1"></main>
+
+  <nav class="tabbar" aria-label="Sections">
+    <a class="tabbar__item" href="#/overview" data-route="overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Overview</span></a>
+    <a class="tabbar__item" href="#/market" data-route="market"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7"/></svg><span>Market</span></a>
+    <a class="tabbar__item" href="#/forecast" data-route="forecast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 17 9 11.5l3.5 3.5L20.5 7M15 7h5.5v5.5"/></svg><span>Forecast</span></a>
+    <a class="tabbar__item" href="#/afford" data-route="afford"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="6" width="17" height="13" rx="2.5"/><path d="M3.5 10.5h17M15.5 15h2"/></svg><span>Afford</span></a>
+    <a class="tabbar__item" href="#/value" data-route="value"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.6 3.5H19a1.5 1.5 0 0 1 1.5 1.5v6.4a1.5 1.5 0 0 1-.44 1.06l-7.6 7.6a1.5 1.5 0 0 1-2.12 0l-6.4-6.4a1.5 1.5 0 0 1 0-2.12l7.6-7.6a1.5 1.5 0 0 1 1.06-.44z"/><circle cx="16" cy="8" r="1.3"/></svg><span>Value</span></a>
+    <a class="tabbar__item" href="#/compare" data-route="compare"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="7" height="14" rx="1.8"/><rect x="13.5" y="5" width="7" height="14" rx="1.8"/></svg><span>Compare</span></a>
+  </nav>
 
   <footer class="footer">
     <div class="footer__inner">
@@ -50,19 +59,20 @@
       <div class="footer__cols">
         <div>
           <h4>Data</h4>
-          <p>Resale transactions: <a href="https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view" target="_blank" rel="noopener">HDB, via data.gov.sg</a></p>
+          <p>Resale prices: <a href="https://data.gov.sg/datasets/d_8b84c4ee58e3cfc0ece0d773c8ca6abc/view" target="_blank" rel="noopener">HDB, via data.gov.sg</a></p>
           <p>Household income: <a href="https://tablebuilder.singstat.gov.sg/table/TS/M810361" target="_blank" rel="noopener">SingStat table M810361</a></p>
+          <p>Town map: <a href="https://data.gov.sg/datasets/d_4765db0e87b9c86336792efe8a1f7a66/view" target="_blank" rel="noopener">URA planning areas, via data.gov.sg</a></p>
           <p>Contains information licensed under the <a href="https://data.gov.sg/open-data-licence" target="_blank" rel="noopener">Singapore Open Data Licence</a>.</p>
         </div>
         <div>
           <h4>Responsible use</h4>
-          <p>Historical patterns do not guarantee future market movements.</p>
-          <p>Fair value estimates are statistical estimates and do not account for every unit-specific characteristic.</p>
-          <p>Affordability figures are informational and not financial advice.</p>
+          <p>Past prices don’t guarantee future ones.</p>
+          <p>Price estimates are based on past sales and can’t account for every detail of a flat.</p>
+          <p>Affordability numbers are a guide, not financial advice.</p>
         </div>
         <div>
           <h4>About</h4>
-          <p>An independent project for the Databricks AI Social Impact Challenge Singapore 2026. Not affiliated with or endorsed by HDB.</p>
+          <p>A student project for the Databricks AI Social Impact Challenge Singapore 2026. Not affiliated with or endorsed by HDB.</p>
           <p>Built on Databricks: Delta Lake, MLflow, Unity Catalog.</p>
           <p>Charts by <a href="https://echarts.apache.org" target="_blank" rel="noopener">Apache ECharts</a> · Typeface <a href="https://rsms.me/inter/" target="_blank" rel="noopener">Inter</a> · <a href="https://github.com/bernardinolintang/Databricks-Hackathon" target="_blank" rel="noopener">Source on GitHub</a></p>
         </div>

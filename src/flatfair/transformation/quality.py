@@ -53,19 +53,19 @@ def build_quality_summary(
         return {"name": name, "description": description, "failed_rows": int(failed), "passed": int(failed) == 0}
 
     checks = [
-        check("schema", "All expected source columns are present", len(missing_columns)),
-        check("price_positive", "resale_price > 0", reason_counts.get("non_positive_price", 0)),
+        check("schema", "All the expected columns are there", len(missing_columns)),
+        check("price_positive", "Every price is above zero", reason_counts.get("non_positive_price", 0)),
         check(
             "floor_area_valid",
-            "floor_area_sqm > 0 and within plausible bounds",
+            "Every floor area is realistic",
             reason_counts.get("non_positive_floor_area", 0) + reason_counts.get("implausible_floor_area", 0),
         ),
-        check("month_parseable", "month parses as YYYY-MM", reason_counts.get("unparseable_month", 0)),
-        check("no_future_dates", "no transaction dated after the pull date", reason_counts.get("future_month", 0)),
-        check("town_present", "town is not missing", reason_counts.get("missing_town", 0)),
-        check("flat_type_present", "flat_type is not missing", reason_counts.get("missing_flat_type", 0)),
-        check("lease_possible", "remaining lease within 0-99 years, commencement year plausible", reason_counts.get("impossible_lease", 0)),
-        check("storey_parseable", "storey_range parses as 'NN TO NN'", reason_counts.get("unparseable_storey_range", 0)),
+        check("month_parseable", "Every sale has a valid month", reason_counts.get("unparseable_month", 0)),
+        check("no_future_dates", "No sale is dated in the future", reason_counts.get("future_month", 0)),
+        check("town_present", "Every sale has a town", reason_counts.get("missing_town", 0)),
+        check("flat_type_present", "Every sale has a flat type", reason_counts.get("missing_flat_type", 0)),
+        check("lease_possible", "Every lease length is possible", reason_counts.get("impossible_lease", 0)),
+        check("storey_parseable", "Every storey range is readable", reason_counts.get("unparseable_storey_range", 0)),
     ]
 
     valid_months = silver.loc[silver["is_valid"], "month"]

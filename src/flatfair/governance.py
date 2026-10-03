@@ -17,6 +17,7 @@ TABLES: dict[str, str] = {
     "bronze_hdb_resale": "Raw HDB resale transactions exactly as published on data.gov.sg; full snapshot replaced each run. All columns are text.",
     "bronze_ingestion_log": "One row per ingestion run: method, row counts, schema check, source timestamp and content hash.",
     "bronze_income": "SingStat M810361: median monthly household employment income (incl. employer CPF) of resident employed households, by year.",
+    "bronze_planning_areas": "URA Master Plan 2019 planning area boundaries from data.gov.sg; geometry kept verbatim as GeoJSON coordinates.",
     "silver_hdb_resale": "Typed and standardised transactions. Nothing is dropped: invalid rows, exact duplicates and unusual prices are flagged with reasons.",
     "gold_data_quality": "Latest data quality summary: row counts, check results and the full summary as JSON.",
     "gold_market_monthly": "Monthly median, mean, quartiles, volume and price per sqm by town x flat type, with ALL rollups, MoM/YoY and rolling averages.",
@@ -25,6 +26,7 @@ TABLES: dict[str, str] = {
     "gold_market_index": "National median price per sqm over the preceding three months; used to bring fair value estimates to today's price level.",
     "gold_comparable_transactions": "Valid transactions with the fields used for comparable-sale search.",
     "gold_affordability": "Repayment and price-to-income for each town x flat type at the official median household income.",
+    "gold_town_map": "Simplified SVG shapes for the 26 HDB towns (drawn from planning areas) plus surrounding land, for the app's town map.",
     "gold_forecast_features": "Lag, momentum and volume features per series, origin month and horizon used to train the forecast model.",
     "gold_forecast": "Published six-month forecast with 80% empirical range per town x flat type.",
     "gold_forecast_backtest": "Rolling-origin backtest predictions from every forecast method, with actuals.",
@@ -41,7 +43,12 @@ def apply(spark: Any, fqn: str, name: str) -> None:
     if comment:
         spark.sql(f"COMMENT ON TABLE {fqn} IS '{comment.replace(chr(39), chr(39) * 2)}'")
     layer = name.split("_", 1)[0]
-    source = "SingStat M810361" if name == "bronze_income" else SOURCE
+    other_sources = {
+        "bronze_income": "SingStat M810361",
+        "bronze_planning_areas": "data.gov.sg d_4765db0e87b9c86336792efe8a1f7a66 (URA)",
+        "gold_town_map": "data.gov.sg d_4765db0e87b9c86336792efe8a1f7a66 (URA)",
+    }
+    source = other_sources.get(name, SOURCE)
     try:
         spark.sql(f"ALTER TABLE {fqn} SET TAGS ('project' = 'flatfair', 'layer' = '{layer}', 'source' = '{source}')")
     except Exception as exc:  # noqa: BLE001 - tags are optional metadata

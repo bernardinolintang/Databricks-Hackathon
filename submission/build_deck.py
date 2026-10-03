@@ -92,23 +92,22 @@ def slide_problem(slide):
     run(p, TEAM_NAME, size=13, bold=True, color=RED)
     p2 = tf.add_paragraph()
     p2.space_before = Pt(6)
-    run(p2, "Problem statement (e.g. A2 — Ageing in place): ", size=11, color=GRAY)
-    run(p2, "C1 — FlatFair: HDB resale market intelligence & affordability forecasting", size=13, bold=True)
+    run(p2, "Problem statement: ", size=11, color=GRAY)
+    run(p2, "C1 FlatFair: HDB resale market intelligence & affordability forecasting", size=13, bold=True)
 
     qa_block(tf, "The problem in one sentence:", [
-        ("Young Singaporeans are making the biggest purchase of their lives in a market where HDB resale prices rose ", False),
-        ("56% since 2017", True), (" while household incomes rose ", False), ("33%", True),
-        (", with no transparent way to judge whether an asking price, or the repayment behind it, is reasonable.", False),
+        ("HDB resale prices rose ", False), ("56% since 2017", True), (" while household incomes rose ", False), ("33%", True),
+        (". First-time buyers have no simple way to tell if an asking price, or the repayment that comes with it, is reasonable.", False),
     ], space_before=12)
     qa_block(tf, "Who is affected, and how badly (use a number from open data):", [
-        ("24,662 households", True), (" bought a resale flat in the last 12 months; ", False),
+        ("24,661 households", True), (" bought a resale flat in the last 12 months. ", False),
         ("1,847", True), (" of those flats sold for $1 million or more. A median 4-room flat now costs ", False),
-        ("4.4 years", True), (" of the median household’s income, up from 3.8 in 2017.", False),
+        ("4.4 years", True), (" of the median household’s income, up from 3.8 years in 2017.", False),
     ], space_before=12)
     qa_block(tf, "Why it matters now:", [
-        ("After a 50% climb since 2020, prices have flattened (", False), ("+1.3% year on year", True),
-        ("), so rising values no longer cover an overpayment. Since August 2024 an HDB loan needs a ", False),
-        ("25% downpayment", True), (" instead of 20%, and the October 2024 Standard, Plus and Prime framework has reset expectations again.", False),
+        ("Prices climbed 50% from 2020 and have now levelled off (", False), ("+1.3% in the past year", True),
+        ("). A rising market no longer makes up for overpaying. Since August 2024 an HDB loan also needs a ", False),
+        ("25% downpayment", True), (", up from 20%.", False),
     ], space_before=12)
 
     # Visual: indexed price vs income, 2017 = 100 (annual medians from the pipeline)
@@ -167,22 +166,22 @@ def slide_solution(slide):
     frame(slide)
     box, tf = textbox(slide, LEFT, TOP, Inches(7.05), Inches(4.8), "Solution answers")
     qa_block(tf, "Your solution in one sentence:", [
-        ("FlatFair turns HDB’s resale records into a five-step decision tool that takes a buyer from ", False),
-        ("“what is the market doing?”", True), (" to ", False), ("“is this flat, at this price, sensible for us?”", True),
+        ("FlatFair takes a buyer from ", False), ("“what is the market doing?”", True), (" to ", False),
+        ("“is this flat, at this price, right for us?”", True), (" in five steps, using HDB’s own resale records.", False),
     ], first=True)
     qa_block(tf, "Who uses it, and what decision it changes:", [
-        ("First-time resale buyers, and the counsellors and planners who advise them. It changes ", False),
-        ("where they look", True), (" (towns ranked by what the household can repay), ", False),
-        ("what they offer", True), (" (asking price vs estimated value and the 5 closest sales) and ", False),
-        ("when they buy", True), (" (a tested six-month outlook).", False),
+        ("First-time resale buyers, and the housing counsellors and planners who advise them. It helps them decide ", False),
+        ("where to look", True), (" (towns that fit their budget), ", False),
+        ("what to offer", True), (" (asking price against the estimate and the 5 closest sales) and ", False),
+        ("when to buy", True), (" (a six-month forecast).", False),
     ])
     p = tf.add_paragraph()
     p.space_before, p.space_after = Pt(10), Pt(2)
     run(p, "Datasets you will use (name + source, e.g. data.gov.sg):", size=11, color=GRAY)
     datasets = [
-        ("HDB Resale Flat Prices, Jan 2017 to present", " — data.gov.sg d_8b84c4ee…6abc, 241,822 sales"),
-        ("Household Employment Income, key indicators (M810361)", " — SingStat Table Builder"),
-        ("HDB Annual Report 2025 · Population by Planning Area", " — HDB, SingStat (supply and demand context)"),
+        ("HDB Resale Flat Prices, Jan 2017 to present", ", data.gov.sg (d_8b84c4ee…6abc), 241,920 sales"),
+        ("Household Employment Income, key indicators (M810361)", ", SingStat Table Builder"),
+        ("Master Plan 2019 Planning Area Boundary", ", URA via data.gov.sg (town map). Plus HDB Annual Report 2025 for supply context"),
     ]
     for i, (name, src) in enumerate(datasets, 1):
         d = tf.add_paragraph()
@@ -191,9 +190,9 @@ def slide_solution(slide):
         run(d, name, size=12, bold=True)
         run(d, src, size=12)
     qa_block(tf, "What makes your approach different from a generic dashboard:", [
-        ("It values a specific flat, not just the market: an 80% price range tested on ", False),
-        ("13,589 sales it never saw", True), (" (median error ", False), ("3.9%", True),
-        (" vs 9.5% for the $/sqm rule of thumb), plus repayment against the 30% MSR cap. Every model must beat a simple baseline: when a 3-month average out-forecast our ML model, we published the average.", False),
+        ("It prices one specific flat and shows the monthly repayment against the 30% limit. The price model was tested on ", False),
+        ("13,588 sales it had never seen", True), (": typical miss ", False), ("3.9%", True),
+        (", against 9.5% for the price-per-sqm rule of thumb. Every model has to beat a simple baseline. A 3-month average forecast better than our ML model, so we use the average.", False),
     ])
 
     # Visual: the working product
@@ -204,7 +203,7 @@ def slide_solution(slide):
     cap_y = pic.top + pic.height + Inches(0.12)
     cap, ctf = textbox(slide, Inches(8.45), cap_y, Inches(4.0), Inches(0.6), "Screenshot caption")
     run(ctf.paragraphs[0], "Working prototype: ", size=10, bold=True)
-    run(ctf.paragraphs[0], "a Tampines 4-room asking $690,000 sits within the expected $612k–$710k range. flatfair-nine.vercel.app", size=10, color=GRAY)
+    run(ctf.paragraphs[0], "a Tampines 4-room asking $690,000 sits within the usual $615k to $713k range. flatfair-nine.vercel.app", size=10, color=GRAY)
 
 
 # --------------------------------------------------------------------------- slide 3
@@ -261,16 +260,16 @@ def slide_architecture(slide):
     columns = [
         ("The user-facing output you will demo:", [
             ("The FlatFair app: ", True),
-            ("market explorer, six-month forecast with its range, affordability with “Where can I afford?”, fair value with comparable sales, and town comparison. ", False),
+            ("pick a town on a map of Singapore, then see its market, a six-month forecast, what you can afford, a fair price with comparable sales, and other towns side by side. ", False),
             ("Already working end to end.", True),
         ]),
         ("Measurable impact if it worked:", [
-            ("On a typical $630k flat the pricing blind spot narrows from ", False), ("~$60k to ~$25k", True),
-            (" (rule-of-thumb vs model median error). Every buyer sees repayment against the 30% MSR cap before committing, refreshed monthly from open data.", False),
+            ("On a typical $630k flat, the usual pricing miss drops from ", False), ("about $60k to about $25k", True),
+            (". Buyers see the repayment against the 30% limit before they commit. The data refreshes every month.", False),
         ]),
         ("What you can realistically finish in the two-week sprint:", [
-            ("Pipeline, both models, the app and 66 tests are built. ", True),
-            ("Sprint: run it as a Lakeflow Job in the final workspace, deploy on Databricks Apps, add a Genie space and dashboard, test with five first-time buyers.", False),
+            ("Pipeline, both models, the app and 77 tests are built. ", True),
+            ("In the sprint: run it as a Lakeflow Job in the final workspace, deploy on Databricks Apps, add a Genie space and dashboard, and test with five first-time buyers.", False),
         ]),
     ]
     col_gap = Inches(0.35)
@@ -294,7 +293,7 @@ def main() -> None:
     slide_problem(prs.slides[0])
     slide_solution(prs.slides[1])
     slide_architecture(prs.slides[2])
-    prs.core_properties.title = "FlatFair — DAISI 2026 Round 1"
+    prs.core_properties.title = "FlatFair, DAISI 2026 Round 1"
     prs.core_properties.subject = "Problem C1: HDB resale market intelligence and affordability forecasting"
     prs.save(str(OUT))
     print(f"Wrote {OUT}")

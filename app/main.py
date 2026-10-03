@@ -80,6 +80,16 @@ def meta() -> JSONResponse:
     return ok(market_service.meta_payload(bundle()))
 
 
+@app.get("/api/map")
+def town_map() -> JSONResponse:
+    return ok(market_service.town_map(bundle()))
+
+
+@app.get("/api/town-stats")
+def town_stats(flat_type: str = "4 ROOM") -> JSONResponse:
+    return ok(market_service.town_stats(bundle(), flat_type))
+
+
 @app.get("/api/overview")
 def overview() -> JSONResponse:
     return ok(market_service.overview(bundle()))

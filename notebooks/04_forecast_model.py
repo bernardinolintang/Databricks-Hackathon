@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %md
 # MAGIC # 04 · Six-month forecast (MLflow)
-# MAGIC Forecasts the monthly median price for ~100 town × flat type series, 1–6 months ahead.
+# MAGIC Forecasts the monthly median price for ~100 town × flat type series, 1 to 6 months ahead.
 # MAGIC
 # MAGIC **Validation is time-based, never random**: a rolling-origin backtest from six past starting points. At each origin
 # MAGIC the models see only data up to that month, then forecast the next six. Four methods compete:
@@ -14,7 +14,7 @@
 # MAGIC | `gbm` | one gradient-boosted model across all series, lag / momentum / volume features |
 # MAGIC
 # MAGIC The lowest backtest MAPE wins and its own past errors set the 80% range. Every method is a child run in MLflow.
-# MAGIC In the 2025–26 data the baseline won narrowly: the boosted model learned 2020–24 momentum and leaned high as the
+# MAGIC In the 2025 to 2026 data the baseline won narrowly: the boosted model learned 2020 to 2024 momentum and leaned high as the
 # MAGIC market flattened. FlatFair publishes what the evidence supports.
 
 # COMMAND ----------

@@ -12,14 +12,14 @@ The test: a young couple considering a 4-room flat in Tampines can, in about thr
 
 | Area | Included |
 |---|---|
-| Pipeline | data.gov.sg ingestion (bulk + paged API, retries, schema and row-count checks, audit log, file fallback); bronze/silver/gold Delta; 9 quality checks; flags not deletes; partial-month handling; SingStat income ingestion |
+| Pipeline | data.gov.sg ingestion (bulk + paged API, retries, rate-limit handling, schema and row-count checks, audit log, file fallback); bronze/silver/gold Delta; 9 quality checks; flags not deletes; partial-month handling; SingStat income ingestion; URA boundary ingestion for the town map |
 | Market | KPIs (median, YoY, volume, $/sqm), price trend with interquartile band, volume, distribution, $/sqm town ranking; filters for town, flat type, storey, flat model and year range; Oct 2024 marker with a before/after association |
 | Forecast | 6-month town × flat type forecast; 4 methods compared by rolling-origin backtest; MLflow; empirical 80% range; generated plain-English reading |
 | Affordability | Repayment, upfront cash, stamp duty, MSR comparison, budget, official income benchmark, *Where can I afford?* ranking, editable assumptions |
 | Fair value | Gradient-boosted model vs ridge vs rule of thumb; holdout scoring; expected range; asking-price position; local and global explanations; 5 comparables |
 | Compare | Up to 3 towns: price, $/sqm, YoY, 5-year change, outlook, repayment share, generated takeaways, trend chart |
-| Product | Data Health panel, error and empty states, table view for every chart, phone layout, journey state carried across pages |
-| Platform | Databricks notebooks 00–07, MLflow, UC model registry, table comments and tags, SQL views (lineage), Databricks Apps config; Vercel public demo |
+| Product | Map-based town picker on every page, Data Health panel, error and empty states, table view for every chart, layouts from 360 px phones to 2560 px monitors, journey state carried across pages |
+| Platform | Databricks notebooks 00 to 07, MLflow, UC model registry, table comments and tags, SQL views (lineage), Databricks Apps config; Vercel public demo |
 
 ## Deliberately after the MVP
 
@@ -31,7 +31,7 @@ The test: a young couple considering a 4-room flat in Tampines can, in about thr
 | Town-level income benchmarks | SingStat publishes household income by planning area only in census years; mixing years would mislead |
 | Genie space and Lakeview dashboard | SQL views exist; building them in the final workspace is a Demo Day polish task |
 | Grants (EHG, CPF Housing Grant) in affordability | Eligibility rules are detailed; a wrong grant estimate is worse than none |
-| Map view | Needs geocoding of block + street (OneMap API); a nice-to-have for the story, not the decision |
+| Block-level map | Needs geocoding of block + street (OneMap API). The town-level map is built |
 
 ## Risks and mitigations
 

@@ -1,6 +1,6 @@
 # Methodology
 
-All numbers below come from the run on data pulled 2 October 2026 (241,822 transactions, Jan 2017 to Oct 2026; analysis through Sep 2026).
+All numbers below come from the run on data pulled 3 October 2026 (241,920 transactions, Jan 2017 to Oct 2026; analysis through Sep 2026).
 
 ## 1. Cleaning (bronze → silver)
 
@@ -12,17 +12,17 @@ All numbers below come from the run on data pulled 2 October 2026 (241,822 trans
 | `floor_area_sqm`, `resale_price` | text, mixed formats (`44`, `163.00`, `232000.0`) | float |
 | `town`, `flat_type`, `flat_model` | text | trimmed, upper-case; `MULTI GENERATION` unified with `MULTI-GENERATION` |
 
-Validity checks, each with a named reason in `invalid_reasons`: unparseable month, future month, missing town, missing flat type, price ≤ 0, floor area ≤ 0, floor area outside 20–400 sqm, unparseable storey band, impossible lease (outside 0–99 years, or commencement after the sale or before 1960).
+Validity checks, each with a named reason in `invalid_reasons`: unparseable month, future month, missing town, missing flat type, price ≤ 0, floor area ≤ 0, floor area outside 20 to 400 sqm, unparseable storey band, impossible lease (outside 0 to 99 years, or commencement after the sale or before 1960).
 
 Warnings that keep the row valid:
 
 * `is_duplicate`: identical to an earlier row across all source columns (318 rows). HDB publishes no transaction ID, so two identical rows can be two sales in the same block, storey band and month at the same price. They are kept in all statistics.
-* `is_price_outlier`: log price per sqm more than 5 robust SDs (median/MAD) from its town × flat type × year, in groups of 30+ (1,078 rows). The top end is premium DBSS projects; the bottom end is short-lease flats. Both are explained by features the model sees, so they are kept for training as well.
+* `is_price_outlier`: log price per sqm more than 5 robust SDs (median/MAD) from its town × flat type × year, in groups of 30+ (1,075 rows). The top end is premium DBSS projects; the bottom end is short-lease flats. Both are explained by features the model sees, so they are kept for training as well.
 * `lease_mismatch`: reported remaining lease differs from the commencement-year derivation by more than 2 years (1 row).
 
 `exclude_from_model` covers invalid rows and 1-room / multi-generation flats (178 sales, too few to model or validate).
 
-**Partial month.** Records are by registration date, so the month of the pull is incomplete (113 rows for Oct 2026). Analytics and models stop at the last complete month, Sep 2026.
+**Partial month.** Records are by registration date, so the month of the pull is incomplete (212 rows for Oct 2026). Analytics and models stop at the last complete month, Sep 2026.
 
 ## 2. Market statistics
 
@@ -40,7 +40,7 @@ Warnings that keep the row valid:
 
 **Features for the boosted model** (relative to the series' 3-month level, so one model fits every price scale): deviation of the last month from that level; log changes over 1, 2, 3, 6 and 12 months; 3-month vs 6- and 12-month averages; 24-month trend slope; log 3-month volume and its YoY change; national 3- and 12-month change; horizon; target calendar month; town and flat type as categorical features. Thin months are carried forward from the previous month, never interpolated, so no feature borrows from the future.
 
-**Backtest.** Origins: Dec 2024, Mar 2025, Jun 2025, Sep 2025, Dec 2025 and Mar 2026. At each origin the boosted model is retrained on targets observed up to that origin, then every method forecasts 1–6 months ahead. Actuals are only months with 5+ sales. 3,702 forecasts in total.
+**Backtest.** Origins: Dec 2024, Mar 2025, Jun 2025, Sep 2025, Dec 2025 and Mar 2026. At each origin the boosted model is retrained on targets observed up to that origin, then every method forecasts 1 to 6 months ahead. Actuals are only months with 5+ sales. 3,702 forecasts in total.
 
 | Method | MAE | RMSE | MAPE |
 |---|---|---|---|
@@ -49,11 +49,11 @@ Warnings that keep the row valid:
 | Linear trend (24 months) | $37,955 | $58,312 | 5.69% |
 | Gradient boosting | $31,627 | **$50,246** | 4.66% |
 
-**Selection** is by MAPE because it is comparable across cheap and expensive series. MAPE weighs a given dollar miss on a 3-room flat more heavily than on an executive flat, and it is asymmetric (over-forecasts can exceed 100%, under-forecasts cannot), so MAE and RMSE are reported alongside it. The boosted model wins on RMSE (fewer big misses) but carries a +1.6% mean bias over the validation window. It learned the 2020–24 run-up while the 2025–26 market flattened. The baseline is published.
+**Selection** is by MAPE because it is comparable across cheap and expensive series. MAPE weighs a given dollar miss on a 3-room flat more heavily than on an executive flat, and it is asymmetric (over-forecasts can exceed 100%, under-forecasts cannot), so MAE and RMSE are reported alongside it. The boosted model wins on RMSE (fewer big misses) but carries a +1.6% mean bias over the validation window. It learned the 2020 to 2024 run-up while the 2025 to 2026 market flattened. The baseline is published.
 
-**Interval.** The 10th and 90th percentiles of the selected method's log errors, per horizon and per volume tier (under 10, 10–30, 30+ sales a month), so thin series get wider bands.
+**Interval.** The 10th and 90th percentiles of the selected method's log errors, per horizon and per volume tier (under 10, 10 to 30, 30+ sales a month), so thin series get wider bands.
 
-**Reading.** The sentence is generated from the 6-month change: within ±1.5% is "remain broadly stable", ±1.5–4% is "rise/ease modestly", beyond that "rise/decline". If the 80% band spans today's level, the text says the direction is uncertain.
+**Reading.** The sentence is generated from the 6-month change: within ±1.5% is "stay about the same", ±1.5 to 4% is "rise a little" or "dip a little", beyond that "rise" or "fall". If the 80% band spans today's level, the text says the direction is uncertain.
 
 **MLflow.** Parent run `forecast_backtest` with parameters (horizon, folds, step, training period, validation period, origins, interval level, selection metric). One child run per method with MAE/RMSE/MAPE and per-horizon metrics. The boosted model is logged with its feature set. Metric, by-horizon and interval tables are logged as artifacts.
 
@@ -61,7 +61,7 @@ Warnings that keep the row valid:
 
 **Why an index.** Tree models cannot extrapolate a time trend. Dividing price by a market index (national median $/sqm over the three months *before* the sale month) leaves the model to learn how attributes move price relative to the market. Estimating today means multiplying by the latest index. Because the index for month *m* uses only months before *m*, holdout sales never inform their own prediction.
 
-**Split.** Train Jan 2017 to Mar 2026 (227,942 sales). Holdout Apr–Sep 2026 (13,589 sales).
+**Split.** Train Jan 2017 to Mar 2026 (227,942 sales). Holdout Apr to Sep 2026 (13,588 sales).
 
 | Model | MAE | MAPE | Median error | Within 5% | Within 10% |
 |---|---|---|---|---|---|
@@ -71,9 +71,9 @@ Warnings that keep the row valid:
 
 Selection is by MAE among fitted models; the rule of thumb is the yardstick. The selected model is refitted on all data before serving.
 
-**Expected range.** The 10th–90th percentile of holdout log errors per flat type (about −8% to +7% for 4-room). It is labelled as "80% of recent sales in testing sold within this range of their estimate".
+**Usual range.** The 10th to 90th percentile of holdout log errors per flat type (about −8% to +7% for 4-room). It is labelled as "80% of recent sales in testing sold within this range of their estimate".
 
-**Asking price.** Below the range, within it, or above it, with the difference in dollars and percent. The wording avoids "good deal" or "overpriced".
+**Asking price.** "Below the usual range", "Within the usual range" or "Above the usual range", with the difference in dollars and percent. The wording avoids "good deal" or "overpriced".
 
 **Explanations.**
 * *Global:* permutation importance on 8,000 holdout sales (increase in mean absolute log error when a feature is shuffled). Floor area 31%, town 28%, remaining lease 20%, flat type 11%, flat model 7%, storey 4%; transaction date ≈0 because the index already absorbs time.
@@ -93,7 +93,7 @@ repayment ratio   = repayment / monthly household income
 price-to-income   = price / (12 × monthly household income)
 ```
 
-Defaults model an HDB housing loan: 2.6% a year, 25 years, 75% LTV. They are editable in the app and set in `config.yaml`. Status: **Comfortable** at 25% or less (an illustrative product threshold, labelled as such); **Within the MSR limit** at 25–30%; **Above the MSR limit** over 30% (the Mortgage Servicing Ratio cap for HDB flats).
+Defaults model an HDB housing loan: 2.6% a year, 25 years, 75% LTV. They are editable in the app and set in `config.yaml`. Status: **Comfortable** at 25% or less (our own rule of thumb, labelled as such); **Within the 30% limit** at 25 to 30%; **Over the 30% limit** above that (the Mortgage Servicing Ratio cap for HDB flats).
 
 **Budget.** The highest price at which savings cover the upfront amount and the loan is serviceable within the MSR cap (or the user's own cap), found by bisection. The UI says which constraint binds.
 
@@ -104,3 +104,11 @@ Defaults model an HDB housing loan: 2.6% a year, 25 years, 75% LTV. They are edi
 ## 6. Policy marker
 
 October 2024 marks the first BTO exercise under the Standard / Plus / Prime framework. Resale records have no classification field, and the framework governs new flats. FlatFair therefore shows only a marker and a before/after comparison of medians, described as an association, never an effect.
+
+## 7. Town map
+
+HDB does not publish town boundaries as shapes, so each town is drawn from the URA planning area it matches (Master Plan 2019, `d_4765db0e87b9c86336792efe8a1f7a66` on data.gov.sg). Two towns need a rule: **Central Area** is the 11 planning areas URA flags as Central Area, and **Kallang/Whampoa** is drawn as the Kallang planning area. The other 19 planning areas (catchment, industrial land, islands) are drawn in grey for context.
+
+The pipeline projects the coordinates (equirectangular, scaled by the cosine of the latitude), simplifies each outline with Douglas-Peucker at about 45 m, drops islets under a minimum size, and writes SVG paths. That takes 40,505 source points down to 2,257 and 34 KB, with no GIS dependency. The shapes show where a town is. They are not legal boundaries.
+
+Towns are shaded in five steps of one colour by median price, with breaks at the quintiles so each shade holds about the same number of towns. A town with fewer than 10 sales of the chosen flat type in 12 months is greyed out as "too few sales". The chosen town is filled solid.

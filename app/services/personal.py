@@ -70,7 +70,7 @@ def affordability(
         if row.empty or pd.isna(row.iloc[0]["median_price_12m"]):
             raise InputError(f"No recent {title_case(flat_type)} sales in {title_case(town)}; enter a price instead")
         price = float(row.iloc[0]["median_price_12m"])
-        price_source = "median of the last 12 months"
+        price_source = "the median over the last 12 months"
 
     result = assess(price, monthly_income, cash_cpf, assumptions)
     budget = max_price(monthly_income, cash_cpf, assumptions, max_repayment)
@@ -109,7 +109,7 @@ def affordability(
         "benchmark": benchmark_view,
         "ranking": ranking.to_dict("records"),
         "within_reach_count": int(ranking["within_reach"].sum()) if not ranking.empty else 0,
-        "window_label": f"{month_label(bundle.last_month - pd.DateOffset(months=11))} – {month_label(bundle.last_month)}",
+        "window_label": f"{month_label(bundle.last_month - pd.DateOffset(months=11))} to {month_label(bundle.last_month)}",
     }
 
 
@@ -170,7 +170,7 @@ def fair_value(
     typical = typical_flat(bundle, town, flat_type)
     town, flat_type = typical["town"], typical["flat_type"]
     if flat_type in ("1 ROOM", "MULTI-GENERATION"):
-        raise InputError(f"{title_case(flat_type)} flats sell too rarely for a reliable estimate")
+        raise InputError(f"Too few {title_case(flat_type)} flats are sold to estimate a price")
     if not 20 <= floor_area_sqm <= 300:
         raise InputError("Floor area should be between 20 and 300 sqm")
     if not 1 <= remaining_lease_years <= 99:
@@ -236,9 +236,9 @@ def fair_value(
         difference = asking_price - estimate
         position = "below" if asking_price < low else "above" if asking_price > high else "within"
         labels = {
-            "below": "Below estimated market value",
-            "within": "Within expected market range",
-            "above": "Above estimated market value",
+            "below": "Below the usual range",
+            "within": "Within the usual range",
+            "above": "Above the usual range",
         }
         comparison = {
             "asking_price": asking_price,

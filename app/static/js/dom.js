@@ -8,7 +8,14 @@ export function h(tag, attrs = {}, ...children) {
   for (const [key, value] of Object.entries(attrs || {})) {
     if (value === undefined || value === null || value === false) continue;
     if (key === "class") el.className = value;
-    else if (key === "style" && typeof value === "object") Object.assign(el.style, value);
+    else if (key === "style" && typeof value === "object") {
+      // Custom properties ("--accent") only apply through setProperty.
+      for (const [prop, val] of Object.entries(value)) {
+        if (val === null || val === undefined) continue;
+        if (prop.startsWith("--")) el.style.setProperty(prop, val);
+        else el.style[prop] = val;
+      }
+    }
     else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2), value);
     else if (key === "html") el.innerHTML = value; // only for trusted static markup (icons)
     else if (value === true) el.setAttribute(key, "");
@@ -174,13 +181,13 @@ export function toast(message) {
   toastTimer = setTimeout(() => el.remove(), 4200);
 }
 
-export function table(columns, rows, { selectedKey, keyOf } = {}) {
+export function table(columns, rows, { selectedKey, keyOf, stack = false } = {}) {
   return h(
     "div",
     { class: "table-wrap" },
     h(
       "table",
-      { class: "table" },
+      { class: `table${stack ? " table--stack" : ""}` },
       h("thead", {}, h("tr", {}, columns.map((c) => h("th", { class: c.align === "right" ? "r" : null, scope: "col" }, c.label)))),
       h(
         "tbody",
@@ -189,7 +196,7 @@ export function table(columns, rows, { selectedKey, keyOf } = {}) {
           h(
             "tr",
             { class: keyOf && selectedKey && keyOf(row) === selectedKey ? "is-selected" : null },
-            columns.map((c) => h("td", { class: c.align === "right" ? "r" : null }, c.format ? c.format(row[c.key], row) : row[c.key] ?? "–")),
+            columns.map((c) => h("td", { class: c.align === "right" ? "r" : null, "data-label": c.label, "data-primary": c.primary ? "" : null }, c.format ? c.format(row[c.key], row) : row[c.key] ?? "n/a")),
           ),
         ),
       ),

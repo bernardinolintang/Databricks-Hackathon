@@ -35,7 +35,7 @@ export function disposeCharts() {
 
 export function mount(el, option) {
   if (!window.echarts) {
-    fill(el, h("div", { class: "empty" }, "Charts could not load. The table view still has every value."));
+    fill(el, h("div", { class: "empty" }, "The chart didn’t load. Switch to Table to see the numbers."));
     return null;
   }
   const existing = window.echarts.getInstanceByDom(el);
@@ -127,7 +127,7 @@ function tooltipBase(formatter, trigger = "axis") {
 /** Tooltip body: value first (strong), series name second, keyed by a short line. */
 export function tooltipHtml(title, rows) {
   const body = rows
-    .filter((r) => r && r.value !== undefined && r.value !== null && r.value !== "–")
+    .filter((r) => r && r.value !== undefined && r.value !== null && r.value !== "n/a")
     .map(
       (r) =>
         `<div class="ff-tooltip__row"><i style="background:${r.color || C.faint}${r.dashed ? ";opacity:.6" : ""}"></i><b>${escapeHtml(r.value)}</b><span>${escapeHtml(r.label)}</span></div>`,

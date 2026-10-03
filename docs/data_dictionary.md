@@ -29,6 +29,9 @@ One row per run: `dataset_id, method, rows, api_total_rows, columns, missing_col
 ### bronze_income
 SingStat M810361 series 5: `year, median_monthly_household_income, series_name, unit, table_id, table_title, source_last_updated, _ingested_at`.
 
+### bronze_planning_areas
+URA planning area boundaries: `planning_area, region, central_area, geometry_type, geometry_json` (GeoJSON coordinates kept verbatim), `_ingested_at`.
+
 ## Silver
 
 ### silver_hdb_resale
@@ -77,8 +80,11 @@ Grain: town × flat_type at the latest official median income.
 ### gold_comparable_transactions
 Valid transactions with `month, year, town, flat_type, flat_model, block, street_name, storey_range, storey_mid, floor_area_sqm, remaining_lease_years, resale_price, price_per_sqm, is_duplicate, is_price_outlier`.
 
+### gold_town_map
+One row per drawn shape: `kind` (`town` or `context`), `name`, `region`, `svg_path`, `label_x`, `label_y`, `area`, `merged`, `planning_areas`, `view_width`, `view_height`.
+
 ### gold_forecast
-`town, flat_type, origin_month, month, horizon (1–6), forecast_price, lower_price, upper_price (80%), recent_level_price, volume_tier, method`
+`town, flat_type, origin_month, month, horizon (1 to 6), forecast_price, lower_price, upper_price (80%), recent_level_price, volume_tier, method`
 
 ### gold_forecast_features / gold_forecast_backtest / gold_forecast_metrics
 Features per series × origin × horizon; every backtest prediction with actuals; MAE / RMSE / MAPE per method with `selected`.
@@ -90,4 +96,4 @@ Holdout `mae, rmse, mape, median_ape, within_5pct, within_10pct, n, mae_vs_basel
 `checked_at, total_rows, valid_rows, invalid_rows, duplicate_rows, missing_values_total, price_outlier_rows, latest_month, checks_passed, checks_total, summary_json`.
 
 ## Serving bundle (`/Volumes/workspace/flatfair/serving`, `data/serving`)
-`transactions.parquet, market_monthly.parquet, town_summary.parquet, forecast.parquet, income.parquet, fair_value_model.joblib, meta.json` (quality summary, model metrics, intervals, importance, assumptions, sources).
+`transactions.parquet, market_monthly.parquet, town_summary.parquet, forecast.parquet, income.parquet, town_map.json, fair_value_model.joblib, meta.json` (quality summary, model metrics, intervals, importance, assumptions, sources).

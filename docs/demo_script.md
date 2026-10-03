@@ -6,13 +6,16 @@ Before going live: open the app in a fresh browser window (no saved state), then
 
 | # | Scene | Presenter | Click path | Say |
 |---|---|---|---|---|
-| 0 | Hook | A | Overview | "Resale prices are up 56% since 2017; median household income is up 33%. Buyers have the data but not the answers. FlatFair turns 241,822 official transactions into a decision." |
-| 1 | The market | A | Overview → **Explore the market** (Tampines, 4-room pre-selected) | "Tampines 4-room median is $671k, up 1.7% on a year ago, with flat momentum. The band is the middle half of sales; the marker is the Oct 2024 classification change, shown as context, not cause." |
-| 2 | The forecast | A → B | **Open the forecast** | "Our gradient-boosted model came second. The simplest method, a 3-month average, won a six-origin backtest across 104 series, so that's what we publish. The 80% range comes from its own past errors. Every run is in MLflow." |
-| 3 | Affordability | B | **Check affordability**, income 9000, savings 200000 | "$2,176 a month, 24% of income: comfortable, and under the 30% MSR cap. Their budget is about $733k, limited by upfront cash. *Where can I afford?* puts 17 of 25 towns within reach." |
-| 4 | Fair value | B → C | **Estimate fair value**: 95 sqm, storey 10–12, 72 years left, asking $690,000 | "Estimated $662k, range $612k–$710k. The asking price is 4% above the estimate, inside the expected range. Higher floor adds about $9k over a typical Tampines 4-room. These five sales are the closest comparables. Tested on 13,589 sales it never saw: median error 3.9%." |
-| 5 | Alternatives | C | **Compare towns**: Tampines, Bedok, Pasir Ris | "Bedok is $72k cheaper and takes 20% of income. Tampines grew most over five years. The decision is theirs, now with evidence." |
-| 6 | How it's built | C | Show Databricks: notebooks, Delta tables with comments/tags, lineage, MLflow runs | "Bronze/silver/gold in Unity Catalog, nine quality checks with nothing deleted, MLflow for both models, and the app on Databricks Apps." |
+| 0 | Hook | A | Overview | "Resale prices are up 56% since 2017. Household income is up 33%. Buyers have the data but no easy way to use it. FlatFair turns 241,920 HDB records into answers." |
+| 1 | The map | A | Overview, tap **Tampines** on the map | "Every town is on the map, shaded by price. Tap one and the whole town lights up with its numbers. The shapes come from URA's open boundary data, so there's no map service behind it." |
+| 2 | The market | A | **See Tampines** | "A 4-room flat in Tampines is $671k, up 1.7% from a year ago, and flat over the last three months. The band is the middle half of sales. The marker is the October 2024 flat classification change, shown for context." |
+| 3 | The forecast | A to B | **See the forecast** | "We tried four methods on 104 town and flat type combinations, from six past dates. The simplest one won, a 3-month average, so that's what we show. Our machine learning model came second. Every test run is in MLflow." |
+| 4 | Affordability | B | **Check affordability**, income 9000, savings 200000 | "$2,176 a month, 24% of income, under the 30% limit. Their budget is about $733k. 17 of 25 towns fit." |
+| 5 | Fair value | B to C | **Check a flat's price**: 95 sqm, storey 10 to 12, 72 years left, asking $690,000 | "Estimated at $666k, usual range $615k to $713k. The asking price is about 4% above the estimate but inside the range. The higher floor adds about $10k. These five are the closest recent sales. On 13,588 sales the model had never seen, its typical miss was 3.9%." |
+| 6 | Alternatives | C | **Compare towns**: Tampines, Bedok, Pasir Ris | "Bedok is $72k cheaper and takes 20% of their income. Tampines went up the most in five years. Now they can decide with evidence." |
+| 7 | How it's built | C | Show Databricks: notebooks, Delta tables with comments and tags, lineage, MLflow runs | "Bronze, silver and gold tables in Unity Catalog. Nine quality checks, nothing deleted. MLflow for both models. The app runs on Databricks Apps." |
+
+On a phone the six sections sit in a tab bar at the bottom, and the town picker opens as a sheet with the map on top.
 
 ## Fallbacks
 
@@ -25,12 +28,13 @@ Before going live: open the app in a fresh browser window (no saved state), then
 
 | Question | Answer |
 |---|---|
-| Why didn't you use the ML model for the forecast? | We did train one. It lost the backtest narrowly because it learned 2020–24 momentum and the market flattened. Publishing the winner, with the scorecard visible, is the honest choice; the pipeline re-selects automatically each run. |
-| How do you handle outliers? | We flag, not delete. 1,078 unusual $/sqm sales turned out to be premium DBSS or short-lease flats the model can explain, so they stay. 318 exact duplicates stay too: there's no transaction ID, so they can be genuine twin sales. |
+| Why didn't you use the ML model for the forecast? | We did train one. It lost the backtest narrowly because it learned 2020 to 2024 momentum and the market flattened. We show the winner and the scorecard. The pipeline picks again on every run. |
+| How do you handle outliers? | We flag them and keep them. 1,075 unusual $/sqm sales turned out to be premium DBSS or short-lease flats the model can explain, so they stay. 318 exact duplicates stay too: there's no transaction ID, so they can be genuine twin sales. |
 | Is the fair value a valuation? | No. It's a statistical estimate with an 80% range. It can't see renovation, view or negotiation, and the UI says so on every result. |
 | Does the 2024 classification change affect resale prices? | The framework applies to new BTO flats and resale records have no classification field. We show before/after medians as an association only. |
 | Where's the income data from? | SingStat Table Builder M810361, median household employment income including employer CPF, pulled by API. |
 | Could HDB or a bank adopt this? | Everything runs on public data and a Free Edition workspace, refreshes monthly with one job, and needs no personal data. A counsellor could use the affordability and fair-value steps with a client today. |
+| Do you need a maps API? | No. The map is drawn from URA planning area boundaries on data.gov.sg, simplified in our pipeline to 34 KB. |
 | What would you build next? | BTO supply impact on nearby resale prices, grants in the affordability step, and a Genie space so analysts can ask questions of the gold tables in plain English. |
 
 ## Demo readiness checklist (from the DAISI guide)
@@ -38,10 +42,10 @@ Before going live: open the app in a fresh browser window (no saved state), then
 | Item | Status |
 |---|---|
 | Deployment owner can sign in and open every resource | **Team:** confirm in the final workspace |
-| App, pipeline and data ready in the final workspace | Notebooks 00–07 + `app.yaml` ready. **Team:** run them in the final workspace and deploy the app |
-| Main journey tested from a fresh browser session | Done locally (headless Chrome, clean profile) and by `tests/test_api.py::test_demo_journey`. **Team:** repeat on the deployed URL |
+| App, pipeline and data ready in the final workspace | Notebooks 00 to 07 + `app.yaml` ready. **Team:** run them in the final workspace and deploy the app |
+| Main journey tested from a fresh browser session | Done: `tests/ui_check.py` loads every page in a clean Chrome session at nine screen sizes, and `tests/test_api.py::test_demo_journey` walks the journey. **Team:** repeat on the deployed URL |
 | No token, password, private key or personal data visible | Repo scanned before push; the app collects no identity; no secrets are needed (both data APIs are public) |
 | Team can explain problem, user, architecture, Databricks contribution and handoffs | This script; presenters A/B/C above |
-| Third-party datasets, libraries, models and templates credited | README §17 and app footer |
-| Screenshot or recording for the most failure-prone step | `docs/screenshots/`; record a 60-second screen capture of scenes 3–4 before Demo Day |
+| Third-party datasets, libraries, models and templates credited | README section 17 and the app footer |
+| Screenshot or recording for the most failure-prone step | `docs/screenshots/`; record a 60-second screen capture of scenes 3 and 4 before Demo Day |
 | Final link, repository and materials accessible to judges | Vercel URL is public. GitHub repo is **private**: make it public or add judges. Deck: `submission/FlatFair_Round1_Deck.pdf` |

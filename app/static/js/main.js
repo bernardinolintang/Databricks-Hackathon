@@ -4,6 +4,7 @@ import { api } from "./api.js";
 import { disposeCharts } from "./charts.js";
 import { clear, fill, errorBanner, h, iconSvg } from "./dom.js";
 import { dateTime, int, monthLabel } from "./format.js";
+import { transition } from "./motion.js";
 
 const PAGES = {
   overview: () => import("./pages/overview.js"),
@@ -34,20 +35,26 @@ function currentRoute() {
 async function route() {
   const name = currentRoute();
   const token = ++renderToken;
-  for (const tab of document.querySelectorAll(".tabs__item")) {
-    if (tab.dataset.route === name) {
-      tab.setAttribute("aria-current", "page");
-      tab.scrollIntoView({ block: "nearest", inline: "nearest" });
-    } else tab.removeAttribute("aria-current");
+  for (const tab of document.querySelectorAll("[data-route]")) {
+    if (tab.dataset.route === name) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
   }
   document.title = `FlatFair · ${TITLES[name]}`;
-  disposeCharts();
-  clear(view);
-  window.scrollTo({ top: 0, behavior: "instant" in window ? "instant" : "auto" });
   try {
     const module = await PAGES[name]();
     if (token !== renderToken) return;
-    await module.render(view, { meta });
+    // Swap the page inside a view transition so sections cross-fade.
+    await transition(() => {
+      disposeCharts();
+      clear(view);
+      window.scrollTo({ top: 0, behavior: "instant" });
+      // Not awaited: pages paint their frame at once and fill in as data arrives.
+      module.render(view, { meta }).catch((error) => {
+        if (token !== renderToken) return;
+        console.error(error);
+        fill(view, h("div", { class: "wrap section" }, errorBanner(`Something went wrong loading this page: ${error.message}`)));
+      });
+    });
   } catch (error) {
     if (token !== renderToken) return;
     console.error(error);
@@ -60,18 +67,18 @@ function renderHealth(m) {
   const button = document.getElementById("health-button");
   const allPassed = q.checks_passed === q.checks_total;
   button.dataset.state = allPassed ? "ok" : "warn";
-  button.querySelector(".health__text").textContent = `Data through ${monthLabel(m.last_complete_month)}`;
+  button.querySelector(".health__text").textContent = `Data up to ${monthLabel(m.last_complete_month)}`;
   button.setAttribute("aria-label", `Data health: ${q.checks_passed} of ${q.checks_total} checks passed. Open details.`);
 
   const body = document.getElementById("health-body");
   fill(body, 
     h("p", { class: "eyebrow" }, "Data health"),
-    h("h2", { class: "h2", id: "health-title" }, allPassed ? "All quality checks passed" : "Some checks need attention"),
+    h("h2", { class: "h2", id: "health-title" }, allPassed ? "All checks passed" : "Some checks failed"),
     h(
       "p",
       { class: "sub" },
-      `Pulled from data.gov.sg on ${dateTime(q.ingested_at)} via the ${q.ingestion_method === "api" ? "paginated datastore API" : "bulk export"}. `,
-      `Source last updated ${dateTime(q.source_last_updated)}.`,
+      `We pulled this from data.gov.sg on ${dateTime(q.ingested_at)}. `,
+      `HDB last updated it on ${dateTime(q.source_last_updated)}.`,
     ),
     h(
       "div",
@@ -79,22 +86,22 @@ function renderHealth(m) {
       miniStat("Total rows", int(q.total_rows)),
       miniStat("Valid rows", `${int(q.valid_rows)}`),
       miniStat("Invalid rows", int(q.invalid_rows)),
-      miniStat("Exact duplicates", int(q.duplicate_rows), "Kept: no transaction ID separates two identical sales"),
+      miniStat("Exact duplicates", int(q.duplicate_rows), "Kept. Two flats can sell at the same price in the same block."),
       miniStat("Missing values", int(q.missing_values_total)),
-      miniStat("Unusual $/sqm", int(q.price_outlier_rows), "Flagged and kept; mostly premium or short-lease flats"),
+      miniStat("Unusual prices", int(q.price_outlier_rows), "Flagged and kept. Mostly premium or short-lease flats."),
     ),
     h("h3", { class: "h3 mt-24" }, `Checks (${q.checks_passed}/${q.checks_total})`),
     h(
       "ul",
       { class: "checks mt-8" },
-      q.checks.map((c) => h("li", { class: c.passed ? "pass" : "fail" }, iconSvg(c.passed ? "check" : "cross"), h("span", {}, c.description), h("b", {}, c.passed ? "Pass" : `${int(c.failed_rows)} rows`))),
+      q.checks.map((c) => h("li", { class: c.passed ? "pass" : "fail" }, iconSvg(c.passed ? "check" : "cross"), h("span", {}, c.description), h("b", {}, c.passed ? "Pass" : `${int(c.failed_rows)} failed`))),
     ),
     h(
       "p",
       { class: "small mt-16" },
-      `Coverage ${monthLabel(q.earliest_month)} to ${monthLabel(q.latest_month)}. `,
-      `${monthLabel(q.latest_month)} is still being registered, so analysis stops at ${monthLabel(q.last_complete_month)}. `,
-      `Excluded from model training: ${int(q.excluded_from_model_rows)} rows (1-room and multi-generation flats, too few sales to model).`,
+      `The data runs from ${monthLabel(q.earliest_month)} to ${monthLabel(q.latest_month)}. `,
+      `${monthLabel(q.latest_month)} isn’t complete yet, so the numbers stop at ${monthLabel(q.last_complete_month)}. `,
+      `${int(q.excluded_from_model_rows)} records are left out of the price model because too few 1-room and multi-generation flats are sold.`,
     ),
   );
 }

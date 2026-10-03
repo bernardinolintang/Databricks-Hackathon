@@ -7,12 +7,12 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 export const isNum = (v) => typeof v === "number" && Number.isFinite(v);
 
 export function money(v) {
-  return isNum(v) ? money0.format(v) : "–";
+  return isNum(v) ? money0.format(v) : "n/a";
 }
 
 /** $638K / $1.03M, for axes and dense lists. */
 export function moneyShort(v) {
-  if (!isNum(v)) return "–";
+  if (!isNum(v)) return "n/a";
   const abs = Math.abs(v);
   if (abs >= 1e6) return `$${(v / 1e6).toFixed(abs >= 1e7 ? 1 : 2).replace(/\.?0+$/, "")}M`;
   if (abs >= 1e3) return `$${Math.round(v / 1e3)}K`;
@@ -20,22 +20,22 @@ export function moneyShort(v) {
 }
 
 export function int(v) {
-  return isNum(v) ? int0.format(v) : "–";
+  return isNum(v) ? int0.format(v) : "n/a";
 }
 
 export function pct(v, digits = 1, signed = true) {
-  if (!isNum(v)) return "–";
+  if (!isNum(v)) return "n/a";
   const s = v.toFixed(digits);
   return `${signed && v > 0 ? "+" : ""}${s}%`;
 }
 
 export function ratio(v, digits = 0) {
-  return isNum(v) ? `${(v * 100).toFixed(digits)}%` : "–";
+  return isNum(v) ? `${(v * 100).toFixed(digits)}%` : "n/a";
 }
 
 /** "2026-09" -> "Sep 2026" */
 export function monthLabel(ym) {
-  if (!ym) return "–";
+  if (!ym) return "n/a";
   const [y, m] = String(ym).split("-").map(Number);
   return `${MONTHS[m - 1]} ${y}`;
 }
@@ -62,13 +62,19 @@ export function titleCase(name) {
     .join("");
 }
 
-/** "07 TO 09" -> "7–9" */
+/** "07 TO 09" -> "7 to 9" */
 export function storeyLabel(range) {
-  if (!range) return "–";
+  if (!range) return "n/a";
   return String(range)
     .split(" TO ")
     .map((n) => String(Number(n)))
-    .join("–");
+    .join(" to ");
+}
+
+/** "$612,000 to $710,000" */
+export function moneyRange(low, high, short = false) {
+  const f = short ? moneyShort : money;
+  return `${f(low)} to ${f(high)}`;
 }
 
 export function flatTypeLabel(name, plural = false) {
@@ -88,7 +94,7 @@ export function deltaClass(v, flatBand = 0.5) {
 }
 
 export function dateTime(iso) {
-  if (!iso) return "–";
+  if (!iso) return "n/a";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-SG", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });

@@ -30,6 +30,12 @@ sources:
     series_no: "5"   # Median monthly household employment income incl. employer CPF
     url: "https://tablebuilder.singstat.gov.sg/api/table/tabledata/{table_id}"
     publisher: "Singapore Department of Statistics (SingStat Table Builder)"
+  planning_areas:
+    # Shapes for the town map. HDB publishes no town polygons, so towns are
+    # drawn from the URA planning areas they correspond to.
+    dataset_id: d_4765db0e87b9c86336792efe8a1f7a66
+    name: "Master Plan 2019 Planning Area Boundary (No Sea)"
+    publisher: "Urban Redevelopment Authority (via data.gov.sg)"
 
 ingestion:
   # "bulk" pulls the full snapshot CSV in one request and verifies the row count
@@ -128,6 +134,12 @@ affordability:
     - [500000, 0.04]
     - [1500000, 0.05]
     - [null, 0.06]
+
+town_map:
+  # The map is 1000 units wide (about 50 km), so 0.9 is roughly 45 m on the ground.
+  simplify_tolerance: 0.9
+  # Rings smaller than this (tiny islets) are not drawn.
+  min_ring_area: 12.0
 
 policy_events:
   - month: "2024-10"

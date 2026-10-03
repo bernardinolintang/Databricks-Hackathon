@@ -66,6 +66,7 @@ class Bundle:
     forecast: pd.DataFrame
     income: pd.DataFrame | None
     model: Any
+    town_map: dict[str, Any] | None = None
     last_month: pd.Timestamp = field(init=False)
     towns: list[str] = field(init=False)
     flat_types: list[str] = field(init=False)
@@ -115,6 +116,9 @@ def load_bundle(serving_dir: Path | None = None) -> Bundle:
     income_path = serving_dir / "income.parquet"
     income = pd.read_parquet(income_path) if income_path.exists() else None
     model = joblib.load(serving_dir / "fair_value_model.joblib")
-    bundle = Bundle(meta=meta, income=income, model=model, **frames)
+    # Optional: without it the app offers a plain town list instead of a map.
+    map_path = serving_dir / "town_map.json"
+    town_map = json.loads(map_path.read_text(encoding="utf-8")) if map_path.exists() else None
+    bundle = Bundle(meta=meta, income=income, model=model, town_map=town_map, **frames)
     log.info("Loaded serving bundle from %s (%s transactions)", serving_dir, f"{len(bundle.transactions):,}")
     return bundle

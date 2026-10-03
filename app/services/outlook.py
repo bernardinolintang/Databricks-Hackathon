@@ -13,17 +13,25 @@ from flatfair.models.interpret import interpret_forecast
 
 HISTORY_MONTHS = 48
 METHOD_LABELS = {
-    "naive_last": "Last month carried forward",
-    "rolling_3m": "3-month average (baseline)",
-    "linear_trend": "Linear trend, 24 months",
-    "gbm": "Gradient boosting, lag features",
+    "naive_last": "Last month's price",
+    "rolling_3m": "Average of the last 3 months",
+    "linear_trend": "Straight-line trend (24 months)",
+    "gbm": "Machine learning model",
 }
 MAX_COMPARE = 3
 
 
 def _place(town: str, flat_type: str) -> str:
+    """Short label, e.g. 'Tampines 4-room flats'."""
     town_part = "Singapore" if town == ALL else title_case(town)
-    return town_part if flat_type == ALL else f"{town_part} ({title_case(flat_type)} flats)"
+    return f"{town_part} flats" if flat_type == ALL else f"{town_part} {title_case(flat_type)} flats"
+
+
+def _subject(town: str, flat_type: str) -> str:
+    """Sentence subject, e.g. '4-room prices in Tampines'."""
+    where = "Singapore" if town == ALL else title_case(town)
+    what = "Resale prices" if flat_type == ALL else f"{title_case(flat_type)} prices"
+    return f"{what} in {where}"
 
 
 def forecast(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
@@ -55,8 +63,8 @@ def forecast(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
             "town": town,
             "flat_type": flat_type,
             "reason": (
-                f"{_place(town, flat_type)} has too few sales for a reliable monthly forecast "
-                "(we need three years of history and at least 60 sales in the last 12 months)."
+                f"There are too few sales of {_place(town, flat_type)} to forecast. "
+                "We need three years of history and at least 60 sales in the last 12 months."
             ),
             "alternatives": sorted(alternatives),
             "evaluation": evaluation,
@@ -69,7 +77,7 @@ def forecast(bundle: Bundle, town: str, flat_type: str) -> dict[str, Any]:
 
     final = rows.iloc[-1]
     reading = interpret_forecast(
-        _place(town, flat_type),
+        _subject(town, flat_type),
         float(final["recent_level_price"]),
         float(final["forecast_price"]),
         float(final["lower_price"]),
@@ -163,18 +171,18 @@ def compare(bundle: Bundle, towns: list[str], flat_type: str, monthly_income: fl
         dearest = max(available, key=lambda c: c["median_price"])
         gap = dearest["median_price"] - cheapest["median_price"]
         verdicts.append(
-            f"{title_case(cheapest['town'])} has the lowest median {title_case(flat_type) if flat_type != ALL else ''} price "
-            f"(${cheapest['median_price']:,.0f}), ${gap:,.0f} below {title_case(dearest['town'])}."
+            f"{title_case(cheapest['town'])} is the cheapest at ${cheapest['median_price']:,.0f}, "
+            f"${gap:,.0f} less than {title_case(dearest['town'])}."
         )
         with_5y = [c for c in available if c["change_5y_pct"] is not None and not pd.isna(c["change_5y_pct"])]
         if len(with_5y) >= 2:
             fastest = max(with_5y, key=lambda c: c["change_5y_pct"])
-            verdicts.append(f"{title_case(fastest['town'])} rose the most over five years ({fastest['change_5y_pct']:+.1f}%).")
+            verdicts.append(f"{title_case(fastest['town'])} went up the most in five years ({fastest['change_5y_pct']:+.1f}%).")
         if all(c["affordability"] for c in available):
             best = min(available, key=lambda c: c["affordability"]["repayment_ratio"])
-            who = "your" if income_source == "yours" else "a median household's"
+            who = "your income" if income_source == "yours" else "the median household income"
             verdicts.append(
-                f"At {who} income, {title_case(best['town'])} needs the smallest share for repayments "
+                f"On {who}, {title_case(best['town'])} is the easiest to repay "
                 f"({best['affordability']['repayment_ratio']:.0%} of monthly income)."
             )
     return {
@@ -184,5 +192,5 @@ def compare(bundle: Bundle, towns: list[str], flat_type: str, monthly_income: fl
         "verdicts": [v.replace("  ", " ") for v in verdicts],
         "monthly_income": monthly_income,
         "income_source": income_source,
-        "window_label": f"{month_label(bundle.last_month - pd.DateOffset(months=11))} – {month_label(bundle.last_month)}",
+        "window_label": f"{month_label(bundle.last_month - pd.DateOffset(months=11))} to {month_label(bundle.last_month)}",
     }

@@ -3,6 +3,7 @@
     ingest     data.gov.sg + SingStat -> bronze
     transform  bronze -> silver, plus the data quality summary
     gold       silver -> market aggregates, index, affordability
+    boundaries URA planning areas -> bronze, then the town map (optional)
     forecast   backtest and six-month forecast, logged to MLflow
     fairvalue  fair value model, logged to MLflow
     publish    gold + model -> the serving bundle the app loads
@@ -31,6 +32,8 @@ from flatfair.features.market import (
     build_market_monthly,
     build_town_summary,
 )
+from flatfair.features.townmap import build_town_map, town_map_frame, town_map_from_frame
+from flatfair.ingestion.boundaries import fetch_planning_areas, planning_areas_frame
 from flatfair.ingestion.datagov import ingest_hdb_resale
 from flatfair.ingestion.http import SourceError
 from flatfair.ingestion.singstat import fetch_income_benchmark
@@ -42,7 +45,7 @@ from flatfair.transformation.quality import build_quality_summary, last_complete
 
 log = logging.getLogger(__name__)
 
-STEPS = ["ingest", "transform", "gold", "forecast", "fairvalue", "publish"]
+STEPS = ["ingest", "transform", "gold", "boundaries", "forecast", "fairvalue", "publish"]
 
 # Columns the app needs from each transaction.
 SERVING_TRANSACTION_COLUMNS = [
@@ -125,6 +128,39 @@ def step_gold(store: TableStore, cfg: dict[str, Any]) -> dict[str, Any]:
         "town_summary_rows": len(town_summary),
         "comparable_rows": len(comparable),
         "affordability_rows": len(affordability),
+    }
+
+
+def step_boundaries(store: TableStore, cfg: dict[str, Any], source_file: str | None = None) -> dict[str, Any]:
+    """Fetch planning area shapes and build the town map.
+
+    The map is a convenience, not a dependency: if the source is unreachable
+    the app falls back to a plain town list, so this step warns and moves on.
+    `source_file` reads a GeoJSON downloaded from the dataset page instead.
+    """
+    try:
+        if source_file:
+            geojson = json.loads(Path(source_file).read_text(encoding="utf-8"))
+        else:
+            geojson = fetch_planning_areas(cfg)
+        areas = planning_areas_frame(geojson)
+    except SourceError as exc:
+        log.warning("Planning area boundaries unavailable, continuing without a map: %s", exc)
+        return {"available": False, "reason": str(exc)}
+    store.write("bronze_planning_areas", areas, mode="overwrite")
+
+    silver = store.read("silver_hdb_resale")
+    towns = sorted(silver.loc[silver["is_valid"], "town"].dropna().unique().tolist())
+    town_map = build_town_map(areas, towns, cfg)
+    if town_map["missing_towns"]:
+        log.warning("No planning area shape for towns: %s", town_map["missing_towns"])
+    store.write("gold_town_map", town_map_frame(town_map), mode="overwrite")
+    return {
+        "available": True,
+        "planning_areas": len(areas),
+        "towns_drawn": len(town_map["towns"]),
+        "missing_towns": town_map["missing_towns"],
+        "points": town_map["points"],
     }
 
 
@@ -218,6 +254,12 @@ def step_publish(store: TableStore, cfg: dict[str, Any], serving_dir: Path) -> d
                 frame[column] = pd.to_datetime(frame[column])
         frame.to_parquet(serving_dir / f"{name}.parquet", index=False)
 
+    has_map = store.exists("gold_town_map")
+    if has_map:
+        town_map = town_map_from_frame(store.read("gold_town_map"))
+        town_map["source"] = {k: cfg["sources"]["planning_areas"][k] for k in ("dataset_id", "name", "publisher")}
+        write_json(serving_dir / "town_map.json", town_map)
+
     quality = json.loads(store.read("gold_data_quality").iloc[0]["summary_json"])
     meta = {
         "flatfair_version": __version__,
@@ -232,9 +274,11 @@ def step_publish(store: TableStore, cfg: dict[str, Any], serving_dir: Path) -> d
         "sources": {
             "hdb_resale": {k: cfg["sources"]["hdb_resale"][k] for k in ("dataset_id", "name", "publisher")},
             "income": {k: cfg["sources"]["income"][k] for k in ("table_id", "publisher")} if income is not None else None,
+            "planning_areas": {k: cfg["sources"]["planning_areas"][k] for k in ("dataset_id", "name", "publisher")} if has_map else None,
         },
         "tables": {name: len(frame) for name, frame in tables.items()},
         "has_income_benchmark": income is not None,
+        "has_town_map": has_map,
     }
     write_json(serving_dir / "meta.json", meta)
     log.info("Published serving bundle to %s", serving_dir)
@@ -248,6 +292,7 @@ def run(
     steps: list[str] | None = None,
     method: str | None = None,
     track: bool = True,
+    boundaries_file: str | None = None,
 ) -> dict[str, Any]:
     steps = steps or STEPS
     unknown = [s for s in steps if s not in STEPS]
@@ -263,6 +308,8 @@ def run(
             results[step] = step_transform(store, cfg)
         elif step == "gold":
             results[step] = step_gold(store, cfg)
+        elif step == "boundaries":
+            results[step] = step_boundaries(store, cfg, source_file=boundaries_file)
         elif step == "forecast":
             results[step] = step_forecast(store, cfg, serving_dir, track=track)
         elif step == "fairvalue":

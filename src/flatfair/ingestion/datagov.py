@@ -116,22 +116,39 @@ def fetch_paginated(cfg: dict[str, Any], max_pages: int | None = None) -> tuple[
     return frame.reset_index(drop=True), int(total or 0), pages
 
 
-def fetch_bulk_csv(cfg: dict[str, Any]) -> pd.DataFrame:
-    """Download the full snapshot CSV that data.gov.sg generates for the dataset."""
-    src = cfg["sources"]["hdb_resale"]
-    poll_url = src["download_url"].format(dataset_id=src["dataset_id"])
-    # The export is generated on demand; poll until the signed URL is ready.
-    for _ in range(10):
+POLL_ATTEMPTS = 8
+POLL_PAUSE_SECONDS = 12.0  # the endpoint throttles to roughly one call per ten seconds
+
+
+def poll_download_url(cfg: dict[str, Any], dataset_id: str) -> str:
+    """Ask data.gov.sg to prepare a dataset's export and return its signed URL.
+
+    The export is generated on demand, so the first answer is often "pending".
+    Polling faster than the rate limit only earns 429s, hence the long pause.
+    """
+    poll_url = cfg["sources"]["hdb_resale"]["download_url"].format(dataset_id=dataset_id)
+    status = "no response"
+    for attempt in range(POLL_ATTEMPTS):
         payload = get_with_retries(poll_url, **_http_kwargs(cfg)).json()
         data = payload.get("data") or {}
         if payload.get("code") != 0:
-            raise SourceError(f"poll-download failed: {str(payload)[:200]}")
-        if data.get("status") == "DOWNLOAD_SUCCESS" and data.get("url"):
-            csv_bytes = get_with_retries(data["url"], **_http_kwargs(cfg)).content
-            # Everything is read as text: bronze must not reinterpret source values.
-            return pd.read_csv(io.BytesIO(csv_bytes), dtype=str, keep_default_na=False)
-        time.sleep(3)
-    raise SourceError("poll-download did not produce a file after 10 polls")
+            raise SourceError(f"poll-download failed for {dataset_id}: {str(payload)[:200]}")
+        # Tabular datasets report a status while the export is built; file
+        # datasets (GeoJSON) answer with just the URL.
+        status = data.get("status", "no status")
+        if data.get("url") and status in ("DOWNLOAD_SUCCESS", "no status"):
+            return data["url"]
+        if attempt < POLL_ATTEMPTS - 1:
+            time.sleep(POLL_PAUSE_SECONDS)
+    raise SourceError(f"poll-download for {dataset_id} was still '{status}' after {POLL_ATTEMPTS} polls")
+
+
+def fetch_bulk_csv(cfg: dict[str, Any]) -> pd.DataFrame:
+    """Download the full snapshot CSV that data.gov.sg generates for the dataset."""
+    url = poll_download_url(cfg, cfg["sources"]["hdb_resale"]["dataset_id"])
+    csv_bytes = get_with_retries(url, **_http_kwargs(cfg)).content
+    # Everything is read as text: bronze must not reinterpret source values.
+    return pd.read_csv(io.BytesIO(csv_bytes), dtype=str, keep_default_na=False)
 
 
 def read_local_csv(path: str) -> pd.DataFrame:

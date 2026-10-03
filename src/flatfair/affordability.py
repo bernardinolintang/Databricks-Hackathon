@@ -101,9 +101,9 @@ def assess(price: float, monthly_income: float, cash_cpf: float, a: LoanAssumpti
     if ratio <= a.comfortable_ratio:
         status, label = "comfortable", "Comfortable"
     elif ratio <= a.msr_limit:
-        status, label = "stretch", "Within the MSR limit"
+        status, label = "stretch", "Within the 30% limit"
     else:
-        status, label = "over", "Above the MSR limit"
+        status, label = "over", "Over the 30% limit"
 
     return {
         "price": round(price),

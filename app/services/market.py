@@ -19,6 +19,7 @@ from app.services.common import ALL, InputError, month_label, pct_change, title_
 REFERENCE_FLAT_TYPE = "4 ROOM"
 MIN_SALES_FOR_RANKING = 50
 MIN_SALES_FOR_MOVERS = 100
+MIN_SALES_FOR_MAP = 10
 
 
 def meta_payload(bundle: Bundle) -> dict[str, Any]:
@@ -61,6 +62,7 @@ def meta_payload(bundle: Bundle) -> dict[str, Any]:
         "assumptions": meta["affordability_assumptions"],
         "income_benchmark": bundle.income_benchmark,
         "forecast_series": forecast_series,
+        "has_town_map": bool(bundle.town_map),
         "forecast_method": meta["forecast"]["selected_method"],
         "forecast_mape": next(m["mape"] for m in meta["forecast"]["metrics"] if m["method"] == meta["forecast"]["selected_method"]),
         "forecast_origins": len(meta["forecast"]["validation_origins"]),
@@ -70,6 +72,34 @@ def meta_payload(bundle: Bundle) -> dict[str, Any]:
             for m in meta["fair_value"]["metrics"]
             if m["model"] == meta["fair_value"]["selected_model"]
         ),
+    }
+
+
+def town_map(bundle: Bundle) -> dict[str, Any]:
+    """Town shapes for the map picker (static for a given data build)."""
+    if not bundle.town_map:
+        return {"available": False}
+    return {"available": True, **bundle.town_map}
+
+
+def town_stats(bundle: Bundle, flat_type: str = REFERENCE_FLAT_TYPE) -> dict[str, Any]:
+    """One row per town for a flat type: what the map colours and labels."""
+    flat_type = validate_choice(flat_type, bundle.flat_types, "flat type")
+    summary = bundle.town_summary
+    rows = summary[(summary["flat_type"] == flat_type) & (summary["town"] != ALL)]
+    columns = ["town", "median_price_12m", "median_psm_12m", "transactions_12m", "yoy_pct", "change_5y_pct"]
+    records = rows[columns].to_dict("records")
+    # Too few sales for a trustworthy median: the map greys these out.
+    for record in records:
+        record["enough_sales"] = record["transactions_12m"] >= MIN_SALES_FOR_MAP
+        if not record["enough_sales"]:
+            record["median_price_12m"] = None
+            record["median_psm_12m"] = None
+    return {
+        "flat_type": flat_type,
+        "towns": records,
+        "min_sales": MIN_SALES_FOR_MAP,
+        "window_label": f"{month_label(bundle.last_month - pd.DateOffset(months=11))} to {month_label(bundle.last_month)}",
     }
 
 
@@ -98,7 +128,7 @@ def _kpis(frame: pd.DataFrame, end: pd.Timestamp) -> dict[str, Any]:
         "transactions_3m": int(len(recent)),
         "transactions_12m": int(len(last12)),
         "transactions_12m_change_pct": pct_change(len(last12), len(prev12)) if len(prev12) else None,
-        "window_label": f"{month_label(end - pd.DateOffset(months=2))} – {month_label(end)}",
+        "window_label": f"{month_label(end - pd.DateOffset(months=2))} to {month_label(end)}",
     }
 
 
@@ -129,7 +159,7 @@ def overview(bundle: Bundle) -> dict[str, Any]:
     ytd_prev = txn[(txn["month"].dt.year == end.year - 1) & (txn["month"].dt.month <= end.month)]
     kpis["transactions_ytd"] = int(len(ytd))
     kpis["transactions_ytd_change_pct"] = pct_change(len(ytd), len(ytd_prev))
-    kpis["ytd_label"] = f"Jan – {end:%b %Y}"
+    kpis["ytd_label"] = f"Jan to {end:%b %Y}"
 
     summary = bundle.town_summary
     reference = summary[(summary["flat_type"] == REFERENCE_FLAT_TYPE) & (summary["town"] != ALL)]
@@ -236,7 +266,7 @@ def market(
         "kpis": _kpis(kpi_frame, end),
         "series": _monthly_series(selected, start, end),
         "distribution": distribution,
-        "distribution_label": f"{month_label(end - pd.DateOffset(months=11))} – {month_label(end)}",
+        "distribution_label": f"{month_label(end - pd.DateOffset(months=11))} to {month_label(end)}",
         "town_ranking": ranking[["town", "median_psm", "median_price", "transactions", "yoy_pct"]].to_dict("records"),
         "policy": policy,
         "transactions_in_view": int(len(selected)),
