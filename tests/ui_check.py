@@ -123,13 +123,17 @@ def check_page(page: Page, name: str, width: int, route: str) -> list[str]:
 def check_interactions(page: Page, base: str, width: int) -> list[str]:
     """The map and the town picker actually work."""
     problems: list[str] = []
+    # Wait for what we are about to use, not for a fixed time: a hosted copy is slower than localhost.
     page.goto(f"{base}/#/overview")
-    settle(page)
+    try:
+        page.wait_for_selector(".townmap__town", state="attached", timeout=20000)
+    except Exception:
+        return ["overview map did not appear within 20 seconds"]
     towns = page.locator(".townmap__town")
     if towns.count() != 26:
         return [f"overview map has {towns.count()} towns, expected 26"]
     page.locator('.townmap__town[data-town="PASIR RIS"]').click(force=True)
-    page.wait_for_timeout(250)
+    page.wait_for_function("document.querySelector('.mappanel__name')?.textContent === 'Pasir Ris'", timeout=10000)
     name = page.locator(".mappanel__name").inner_text()
     if name != "Pasir Ris":
         problems.append(f"clicking Pasir Ris on the map showed '{name}'")
@@ -137,10 +141,11 @@ def check_interactions(page: Page, base: str, width: int) -> list[str]:
         problems.append("Pasir Ris is not highlighted after clicking it")
 
     page.goto(f"{base}/#/market")
-    settle(page)
+    page.wait_for_selector("#f-town", timeout=20000)
+    page.wait_for_selector(".insight", timeout=20000)
     page.locator("#f-town").click()
-    page.wait_for_selector(".modal__panel")
-    page.wait_for_timeout(300)
+    page.wait_for_selector(".modal .townlist__item", timeout=20000)
+    page.wait_for_timeout(400)  # let the open animation finish before measuring
     panel = page.locator(".modal__panel").bounding_box()
     viewport = page.viewport_size
     if panel["x"] < -1 or panel["x"] + panel["width"] > viewport["width"] + 1 or panel["y"] < -1 or panel["y"] + panel["height"] > viewport["height"] + 1:
@@ -148,18 +153,20 @@ def check_interactions(page: Page, base: str, width: int) -> list[str]:
     if page.locator(".modal .townmap__town").count() != 26:
         problems.append("picker map is missing towns")
     page.locator('.modal .townlist__item[data-town="BEDOK"]').click()
-    page.wait_for_timeout(600)
+    page.wait_for_timeout(300)
     if page.locator(".modal").count():
         problems.append("picker stayed open after choosing a town")
     if page.locator("#f-town").inner_text().strip() != "Bedok":
         problems.append(f"town field shows '{page.locator('#f-town').inner_text().strip()}' after choosing Bedok")
-    settle(page)
-    if "Bedok" not in page.locator(".insight").inner_text():
+    try:
+        page.wait_for_function("document.querySelector('.insight')?.textContent.includes('Bedok')", timeout=15000)
+    except Exception:
         problems.append("market page did not update to Bedok")
 
     page.locator('.chip:has-text("5-room")').click()
-    settle(page)
-    if "5-room" not in page.locator(".insight").inner_text():
+    try:
+        page.wait_for_function("document.querySelector('.insight')?.textContent.includes('5-room')", timeout=15000)
+    except Exception:
         problems.append("flat type chip did not update the page")
     return problems
 
