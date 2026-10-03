@@ -6,6 +6,8 @@ FlatFair helps a first-time buyer go from *"what is happening in the HDB resale 
 
 Databricks AI Social Impact Challenge Singapore 2026 · Problem **C1: FlatFair, HDB resale market intelligence and affordability forecasting**
 
+**Live demo: [flatfair-nine.vercel.app](https://flatfair-nine.vercel.app)** · Databricks deployment: see [§10](#10-run-it-on-databricks-free-edition)
+
 ![FlatFair overview](docs/screenshots/overview.png)
 
 ---
@@ -150,7 +152,7 @@ mlflow ui --backend-store-uri sqlite:///data/mlflow/mlflow.db   # experiment tra
 
 ## 11. Hosted demo (Vercel)
 
-The same FastAPI app deploys to Vercel with zero config (`app/main.py` is a recognised entrypoint; `vercel.json` sets the function). It serves the committed bundle in `data/serving`. To refresh it, rerun the pipeline and push.
+Live at **https://flatfair-nine.vercel.app**. The same FastAPI app deploys to Vercel with zero config (`app/main.py` is a recognised entrypoint; `vercel.json` sets the function). It serves the committed bundle in `data/serving`; the GitHub repo is connected, so rerunning the pipeline and pushing to `main` redeploys. The first request after a quiet spell takes a few seconds while the function starts, so open the site once before presenting.
 
 ## 12. Limitations
 

@@ -8,3 +8,5 @@ data/gold
 data/mlflow
 mlruns
 mlartifacts
+.env*
+.vercel
