@@ -314,6 +314,7 @@ def step_publish(store: TableStore, cfg: dict[str, Any], serving_dir: Path) -> d
     if income is not None:
         tables["income"] = income
     for name, frame in tables.items():
+        frame.attrs = {}
         for column in ("month", "origin_month", "as_of_month"):
             if column in frame.columns:
                 frame[column] = pd.to_datetime(frame[column])

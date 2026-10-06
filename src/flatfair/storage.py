@@ -107,7 +107,11 @@ class DeltaStore:
         governance.apply(self.spark, self._fqn(name), name)
 
     def read(self, name: str) -> pd.DataFrame:
-        return self.spark.table(self._fqn(name)).toPandas()
+        frame = self.spark.table(self._fqn(name)).toPandas()
+        # Spark Connect hangs query metrics on the frame. They are not JSON, so
+        # writing the frame to parquet later would fail on them.
+        frame.attrs = {}
+        return frame
 
     def exists(self, name: str) -> bool:
         return bool(self.spark.catalog.tableExists(f"{self.catalog}.{self.schema}.{name}"))
