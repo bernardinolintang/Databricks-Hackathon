@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { C, SERIES, chartCard, lineOption, mount, tooltipHtml, tableView } from "../charts.js";
 import { callout, errorBanner, fill, h, iconSvg, skeleton, statusPill, toast } from "../dom.js";
 import { flatTypeLabel, int, isNum, money, moneyRange, monthLabel, pct, ratio, titleCase } from "../format.js";
+import { enter, leave } from "../motion.js";
 import { chipGroup, openTownPicker } from "../picker.js";
 import { state, update } from "../state.js";
 import { createTownMap, loadMap, loadTownStats, mapCaption } from "../townmap.js";
@@ -32,7 +33,7 @@ export async function render(root, { meta }) {
 
   const verdictSlot = h("div", { class: "fill" }, skeleton(260));
   const mapSlot = h("div", { class: "fill" }, skeleton(260));
-  const cards = h("div", { class: "grid grid--3" }, [0, 1, 2].map(() => skeleton(380)));
+  const cards = h("div", { class: "grid grid--3", "data-cascade": "" }, [0, 1, 2].map(() => skeleton(380)));
   let last = null;
   const chart = chartCard({
     title: "Prices over the last five years",
@@ -49,7 +50,7 @@ export async function render(root, { meta }) {
   });
   const body = h(
     "div",
-    { class: "fade-on-load" },
+    {},
     h("section", { class: "wrap section--tight" }, h("div", { class: "grid grid--2" }, verdictSlot, mapSlot)),
     h("section", { class: "wrap section" }, cards),
     h("section", { class: "wrap section--tight" }, chart.el),
@@ -206,17 +207,18 @@ export async function render(root, { meta }) {
   let token = 0;
   async function load() {
     const mine = ++token;
-    body.classList.add("is-loading");
+    // What a new town or flat type redraws. The chart is not here: its lines move by themselves.
+    const swapped = [verdictSlot, cards];
     try {
-      const data = await api("compare", { towns: slots.filter(Boolean).join(","), flat_type: flatType, income: state.income, cash: state.cash });
+      const [data] = await Promise.all([api("compare", { towns: slots.filter(Boolean).join(","), flat_type: flatType, income: state.income, cash: state.cash }), last ? leave(swapped) : null]);
       if (mine !== token) return;
       last = data;
       draw(data);
     } catch (error) {
-      if (mine === token) fill(verdictSlot, errorBanner(error.message));
-    } finally {
-      if (mine === token) body.classList.remove("is-loading");
+      if (mine !== token) return;
+      fill(verdictSlot, errorBanner(error.message));
     }
+    enter(swapped);
   }
 
   function draw(d) {

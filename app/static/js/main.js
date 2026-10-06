@@ -60,7 +60,7 @@ async function route() {
   try {
     const module = await PAGES[name]();
     if (token !== renderToken) return;
-    // Swap the page inside a view transition so sections cross-fade.
+    // Swap the page inside a transition: the old one fades as the new one rises in.
     await transition(() => {
       disposeCharts();
       disposeMaps();
@@ -72,7 +72,7 @@ async function route() {
         console.error(error);
         fill(view, h("div", { class: "wrap section" }, errorBanner(`Something went wrong loading this page: ${error.message}`)));
       });
-    });
+    }, view);
   } catch (error) {
     if (token !== renderToken) return;
     console.error(error);

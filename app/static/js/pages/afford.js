@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { callout, errorBanner, fill, h, iconSvg, moneyInput, nextStep, numberInput, skeleton, statusPill, table } from "../dom.js";
 import { flatTypeLabel, int, money, ratio, titleCase, townLabel } from "../format.js";
+import { enter, leave } from "../motion.js";
 import { chipGroup, townField } from "../picker.js";
 import { state, update } from "../state.js";
 
@@ -30,7 +31,7 @@ export async function render(root, { meta }) {
   );
 
   const form = h("div", { class: "card stack" });
-  const results = h("div", { class: "stack fade-on-load" }, skeleton(260), skeleton(320));
+  const results = h("div", { class: "stack", "data-cascade": "" }, skeleton(260), skeleton(320));
   // The form only sticks beside the results on wide screens. In one column it
   // must scroll away, or the results slide over it.
   root.append(h("section", { class: "wrap section" }, h("div", { class: "grid grid--side" }, h("div", { class: "side-sticky" }, form), results)));
@@ -93,32 +94,39 @@ export async function render(root, { meta }) {
   }
 
   let token = 0;
+  let drawn = false;
   async function load() {
     const mine = ++token;
+    // What new inputs redraw: the result cards and the list of towns.
+    const swapped = [results, rankingSlot];
     if (!inputs.income || inputs.income <= 0) {
       fill(results, errorBanner("Enter your monthly household income to see the numbers."));
+      enter(swapped);
       return;
     }
-    results.classList.add("is-loading");
     try {
-      const data = await api("affordability", {
-        income: inputs.income,
-        cash: inputs.cash ?? 0,
-        flat_type: inputs.flat_type,
-        town: inputs.town,
-        price: inputs.price,
-        max_repayment: inputs.max_repayment,
-        rate: inputs.rate,
-        tenure: inputs.tenure,
-        ltv: inputs.ltv,
-      });
+      const [data] = await Promise.all([
+        api("affordability", {
+          income: inputs.income,
+          cash: inputs.cash ?? 0,
+          flat_type: inputs.flat_type,
+          town: inputs.town,
+          price: inputs.price,
+          max_repayment: inputs.max_repayment,
+          rate: inputs.rate,
+          tenure: inputs.tenure,
+          ltv: inputs.ltv,
+        }),
+        drawn ? leave(swapped) : null,
+      ]);
       if (mine !== token) return;
       draw(data);
+      drawn = true;
     } catch (error) {
-      if (mine === token) fill(results, errorBanner(error.message));
-    } finally {
-      if (mine === token) results.classList.remove("is-loading");
+      if (mine !== token) return;
+      fill(results, errorBanner(error.message));
     }
+    enter(swapped);
   }
 
   function draw(d) {

@@ -3,10 +3,19 @@
 //   splitWords  a headline rises in word by word
 //   cycleWords  a phrase swaps through a few alternatives, then settles
 //   countUp     a number rolls up to its value the first time it is seen
-// Everything plays once, lasts under a second, and is skipped entirely for
-// visitors who ask their device to reduce motion.
+//   leave/enter content that a filter redraws dims, then the new content rises in
+//   transition  the old page fades away and the new one rises in
+// Everything lasts under a second, and is skipped entirely for visitors who
+// ask their device to reduce motion.
 
 export const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const EASE = "cubic-bezier(0.2, 0.7, 0.2, 1)";
+const RISE = { opacity: 0, transform: "translateY(12px)" };
+const SETTLED = { opacity: 1, transform: "none" };
+// How far old content fades while its replacement is on the way.
+const DIM = 0.35;
+const leaving = new WeakMap();
 
 let observer = null;
 const pending = new WeakMap();
@@ -154,9 +163,56 @@ export function countUp(el, to, format, { duration = 900 } = {}) {
   return el;
 }
 
-/** Cross-fade between pages where the browser supports view transitions. */
-export function transition(update) {
-  if (reducedMotion() || !document.startViewTransition) return update();
+/**
+ * Blocks whose content is about to change fade back, so the change does not
+ * land as a hard cut. Resolves once they have. Follow with enter().
+ */
+export function leave(blocks) {
+  if (reducedMotion()) return Promise.resolve();
+  return Promise.all(
+    blocks.filter(Boolean).map((el) => {
+      let fade = leaving.get(el);
+      if (!fade) {
+        fade = el.animate({ opacity: DIM }, { duration: 160, easing: "ease-out", fill: "forwards" });
+        leaving.set(el, fade);
+      }
+      return fade.finished.catch(() => {});
+    }),
+  );
+}
+
+/**
+ * Freshly drawn blocks rise in one after another. A block marked data-cascade
+ * brings its children in one at a time, e.g. a row of tiles.
+ */
+export function enter(blocks) {
+  if (reducedMotion()) return;
+  let order = 0;
+  for (const el of blocks.filter(Boolean)) {
+    const fade = leaving.get(el);
+    fade?.cancel();
+    leaving.delete(el);
+    // Content that was dimmed picks up from there. Anything new starts from nothing.
+    const from = { ...RISE, opacity: fade ? DIM : 0 };
+    for (const item of el.hasAttribute("data-cascade") ? [...el.children] : [el]) {
+      item.animate([from, SETTLED], { duration: 420, delay: Math.min(order, 6) * 50, easing: EASE, fill: "backwards" });
+      order += 1;
+    }
+  }
+}
+
+/**
+ * Change page. Where the browser supports view transitions the old page fades
+ * away as the new one rises in (the stylesheet holds the timing). Elsewhere
+ * the new page still rises in.
+ */
+export function transition(update, el) {
+  if (reducedMotion()) return update();
+  if (!document.startViewTransition) {
+    update();
+    el?.animate([RISE, SETTLED], { duration: 380, easing: EASE });
+    return undefined;
+  }
   const swap = document.startViewTransition(update);
   // Changing page again mid-fade skips this one. That is fine, and not an error.
   swap.ready.catch(() => {});

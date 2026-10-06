@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { C, chartCard, columnsOption, histogramOption, lineOption, mount, rankedBarsOption, tooltipHtml, tableView } from "../charts.js";
 import { callout, delta, errorBanner, fill, h, nextStep, select, skeleton, statTile } from "../dom.js";
 import { flatTypeLabel, int, money, moneyRange, moneyShort, monthLabel, pct, storeyLabel, titleCase, townLabel } from "../format.js";
+import { enter, leave } from "../motion.js";
 import { chipGroup, townField } from "../picker.js";
 import { state, update } from "../state.js";
 
@@ -28,10 +29,10 @@ export async function render(root, { meta }) {
   const row = h("div", { class: "filters__row" });
   root.append(h("div", { class: "filters" }, h("div", { class: "wrap" }, row)));
 
-  const body = h("div", { class: "fade-on-load" });
+  const body = h("div");
   root.append(body);
 
-  const kpiRow = h("div", { class: "grid grid--4" }, [0, 1, 2, 3].map(() => skeleton(124)));
+  const kpiRow = h("div", { class: "grid grid--4", "data-cascade": "" }, [0, 1, 2, 3].map(() => skeleton(124)));
   const headline = h("div", { class: "reading" });
   body.append(h("section", { class: "wrap section--tight" }, headline), h("section", { class: "wrap section" }, kpiRow));
 
@@ -160,18 +161,18 @@ export async function render(root, { meta }) {
   let token = 0;
   async function load() {
     const mine = ++token;
-    body.classList.add("is-loading");
+    // What a new filter redraws. The charts are not here: their marks move by themselves.
+    const swapped = [headline, kpiRow, policySlot, nextSlot];
     try {
-      const data = await api("market", filters);
+      const [data] = await Promise.all([api("market", filters), last ? leave(swapped) : null]);
       if (mine !== token) return;
       last = data;
       draw(data);
     } catch (error) {
       if (mine !== token) return;
       fill(headline, errorBanner(error.message));
-    } finally {
-      if (mine === token) body.classList.remove("is-loading");
     }
+    enter(swapped);
   }
 
   function draw(data) {

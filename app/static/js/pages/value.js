@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { C, chartCard, mount, rankedBarsOption, tooltipHtml, tableView } from "../charts.js";
 import { callout, errorBanner, fill, h, iconSvg, moneyInput, nextStep, numberInput, select, skeleton, statusPill, table } from "../dom.js";
 import { flatTypeLabel, int, isNum, metresLabel, money, moneyRange, monthLabel, pct, storeyLabel, streetLabel, titleCase, walkLabel } from "../format.js";
+import { enter, leave } from "../motion.js";
 import { chipGroup, townField } from "../picker.js";
 import { createPlaceMap } from "../placemap.js";
 import { state, update } from "../state.js";
@@ -61,7 +62,7 @@ export async function render(root, { meta }) {
   );
 
   const form = h("div", { class: "card stack" }, skeleton(420));
-  const result = h("div", { class: "stack fade-on-load" }, skeleton(300), skeleton(260));
+  const result = h("div", { class: "stack", "data-cascade": "" }, skeleton(300), skeleton(260));
   root.append(h("section", { class: "wrap section" }, h("div", { class: "grid grid--side" }, h("div", { class: "side-sticky" }, form), result)));
 
   // ------------------------------------------------------------ location
@@ -286,28 +287,41 @@ export async function render(root, { meta }) {
   }
 
   let token = 0;
+  let drawnFor = null;
+  let nearbyChanging = false;
   async function estimate() {
     if (!flat.floor_area || !flat.remaining_lease) return;
     const mine = ++token;
-    result.classList.add("is-loading");
+    // What a new detail redraws: the estimate and the closest sales. What is
+    // nearby only changes with the block or the town, so it stays still otherwise.
+    const where = flat.block ? `${flat.town}|${flat.street_name}|${flat.block}` : flat.town;
+    if (where !== drawnFor) nearbyChanging = true;
+    const swapped = [result, nearbyChanging ? nearbySlot : null, compsSlot];
     try {
-      const data = await api("fair-value", {
-        town: flat.town,
-        flat_type: flat.flat_type,
-        floor_area: flat.floor_area,
-        storey_range: flat.storey_range,
-        remaining_lease: flat.remaining_lease,
-        flat_model: flat.flat_model,
-        asking_price: flat.asking_price,
-        block: flat.block ? flat.block : null,
-        street_name: flat.block ? flat.street_name : null,
-      });
+      const [data] = await Promise.all([
+        api("fair-value", {
+          town: flat.town,
+          flat_type: flat.flat_type,
+          floor_area: flat.floor_area,
+          storey_range: flat.storey_range,
+          remaining_lease: flat.remaining_lease,
+          flat_model: flat.flat_model,
+          asking_price: flat.asking_price,
+          block: flat.block ? flat.block : null,
+          street_name: flat.block ? flat.street_name : null,
+        }),
+        drawnFor ? leave(swapped) : null,
+      ]);
       if (mine !== token) return;
+      const first = !drawnFor;
       draw(data);
+      drawnFor = where;
+      nearbyChanging = false;
+      enter(first ? [...swapped, accuracySlot] : swapped);
     } catch (error) {
-      if (mine === token) fill(result, errorBanner(error.message));
-    } finally {
-      if (mine === token) result.classList.remove("is-loading");
+      if (mine !== token) return;
+      fill(result, errorBanner(error.message));
+      enter(swapped);
     }
   }
 

@@ -27,6 +27,8 @@ const FONT = getComputedStyle(document.documentElement).getPropertyValue("--font
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // Never zoom in past this many months: fewer says nothing about a trend.
 const MIN_MONTHS = 6;
+// A chart draws itself in once. After that, new data moves the marks to their new places.
+const MOTION = { animationDuration: 450, animationDurationUpdate: 520, animationEasingUpdate: "cubicOut" };
 const finePointer = () => window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
 const live = new Set();
@@ -60,7 +62,10 @@ export function mount(el, option) {
   }
   const existing = window.echarts.getInstanceByDom(el);
   const chart = existing || window.echarts.init(el, null, { renderer: "svg" });
-  chart.setOption(option, true);
+  // Series keep their ids from one draw to the next, so a new town or filter
+  // glides the line to its new shape. A series that is gone is dropped, and the
+  // zoom starts over.
+  chart.setOption(option, { replaceMerge: ["series", "dataZoom"] });
   if (!existing) {
     const observer = new ResizeObserver(() => chart.resize());
     observer.observe(el);
@@ -341,6 +346,7 @@ export function lineOption({ months, series, band, markers, shadeFrom, tooltip, 
   const out = [];
   if (band) {
     out.push({
+      id: "__band_low",
       name: "__band_low",
       type: "line",
       data: band.lower,
@@ -352,6 +358,7 @@ export function lineOption({ months, series, band, markers, shadeFrom, tooltip, 
       connectNulls: false,
     });
     out.push({
+      id: "__band_span",
       name: "__band_span",
       type: "line",
       data: band.upper.map((u, i) => (u == null || band.lower[i] == null ? null : u - band.lower[i])),
@@ -366,6 +373,7 @@ export function lineOption({ months, series, band, markers, shadeFrom, tooltip, 
   series.forEach((s, idx) => {
     const lastIdx = lastIndex(s.values);
     out.push({
+      id: s.name,
       name: s.name,
       type: "line",
       data: s.values.map((v, i) =>
@@ -400,7 +408,7 @@ export function lineOption({ months, series, band, markers, shadeFrom, tooltip, 
   const endLabelRoom = series.some((s) => s.endLabel) ? 96 : 16;
   const view = monthView(months);
   const option = {
-    animationDuration: 450,
+    ...MOTION,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: endLabelRoom, top: markers?.length || shadeFrom ? 36 : 20, bottom: 4, containLabel: true },
     xAxis: monthAxis(months, view),
@@ -426,7 +434,7 @@ function lastIndex(values) {
 export function columnsOption({ months, values, color = C.s1, tooltip, yFormat }) {
   const view = monthView(months);
   const option = {
-    animationDuration: 450,
+    ...MOTION,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: 16, top: 16, bottom: 4, containLabel: true },
     xAxis: monthAxis(months, view, { boundaryGap: true }),
@@ -435,6 +443,7 @@ export function columnsOption({ months, values, color = C.s1, tooltip, yFormat }
     tooltip: tooltipBase((params) => tooltip(params[0].dataIndex)),
     series: [
       {
+        id: "columns",
         type: "bar",
         data: values,
         barMaxWidth: 24,
@@ -451,7 +460,7 @@ export function columnsOption({ months, values, color = C.s1, tooltip, yFormat }
 /** Histogram: categories are bins; bars nearly touch with a 2px gap. */
 export function histogramOption({ labels, values, tooltip, highlight }) {
   return {
-    animationDuration: 450,
+    ...MOTION,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: 16, top: 16, bottom: 4, containLabel: true },
     xAxis: {
@@ -465,6 +474,7 @@ export function histogramOption({ labels, values, tooltip, highlight }) {
     tooltip: tooltipBase((params) => tooltip(params[0].dataIndex)),
     series: [
       {
+        id: "bins",
         type: "bar",
         data: values.map((v, i) => ({ value: v, itemStyle: { color: highlight && highlight(i) ? C.s1 : highlight ? C.rest : C.s1 } })),
         barCategoryGap: "6%",
@@ -478,7 +488,7 @@ export function histogramOption({ labels, values, tooltip, highlight }) {
 export function rankedBarsOption({ names, values, emphasise, format, tooltip, labelAll = false, color = C.s1 }) {
   const n = names.length;
   return {
-    animationDuration: 450,
+    ...MOTION,
     textStyle: { fontFamily: FONT },
     grid: { left: 4, right: labelAll ? 64 : 72, top: 4, bottom: 4, containLabel: true },
     xAxis: { ...valueAxis({ format, scale: false }), axisLabel: { show: false }, splitLine: { show: false } },
@@ -498,6 +508,7 @@ export function rankedBarsOption({ names, values, emphasise, format, tooltip, la
     tooltip: tooltipBase((p) => tooltip(p.dataIndex), "item"),
     series: [
       {
+        id: "bars",
         type: "bar",
         data: values.map((v, i) => {
           const hit = emphasise ? emphasise(i) : false;
